@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agi-server": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\Tom\\Documents\\GitHub\\AGI\\mcp-server.js"
+      ],
+      "env": {},
+      "description": "AGI server with persistent memory, reasoning, and reflection capabilities"
+    }
+  }
+}

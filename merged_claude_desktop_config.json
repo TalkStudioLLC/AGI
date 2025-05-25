@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "filesystems": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:/Users/Tom/Documents/GitHub/presence-react3",
+        "C:/Users/Tom/Documents/GitHub/presence-mobile",
+        "C:/Users/Tom/Documents/GitHub/frontend",
+        "C:/Users/Tom/Documents/GitHub/iaradon",
+        "C:/Users/Tom/Documents/GitHub/contribtracker",
+        "C:/Users/Tom/Downloads/may_12",
+        "C:/Users/Tom/Documents/GitHub/examples/servers/express/api-with-express-and-handlebars",
+        "C:/Users/Tom/Documents/GitHub/aicurriculum",
+        "C:/Users/Tom/Documents/GitHub/aicurriculum-mobile",
+        "C:/Users/Tom/Documents/GitHub/AGI"
+      ],
+      "env": {}
+    },
+    "agi-server": {
+      "command": "node",
+      "args": [
+        "C:/Users/Tom/Documents/GitHub/AGI/mcp-server.js"
+      ],
+      "env": {},
+      "description": "AGI server with persistent memory, reasoning, and reflection capabilities"
+    }
+  }
+}
