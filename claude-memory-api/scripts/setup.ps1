@@ -1,7 +1,7 @@
 # setup.ps1 - Initial Setup for Claude Memory API
 param(
-    [string]$ProjectId = "talkstudio-fb",
-    [string]$Region = "us-east4"
+    [string]$ProjectId = "",
+    [string]$Region = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +33,23 @@ if ($currentAccount) {
         exit 1
     }
     Write-Host "Authentication successful" -ForegroundColor Green
+}
+
+# Get project ID from user if not provided
+if (-not $ProjectId) {
+    $ProjectId = Read-Host "Enter your Google Cloud Project ID"
+    if (-not $ProjectId) {
+        Write-Error "Project ID is required"
+        exit 1
+    }
+}
+
+# Get region if not provided
+if (-not $Region) {
+    $Region = Read-Host "Enter your preferred region (default: us-east4)"
+    if (-not $Region) {
+        $Region = "us-east4"
+    }
 }
 
 # Set project

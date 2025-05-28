@@ -2,12 +2,53 @@
 param(
     [Parameter(Mandatory=$true)]
     [string]$ZipFile,
-    [string]$ApiUrl = "https://claude-memory-api-3ibabnlfhq-uk.a.run.app",
+    [string]$ApiUrl = "",
     [int]$BatchSize = 25,
     [switch]$DryRun,
     [double]$UserWeight = 0.8,
     [double]$AssistantWeight = 0.7
 )
+
+# Function to load environment variables from .env file
+function Load-EnvironmentVariables {
+    if (Test-Path ".env") {
+        Get-Content ".env" | ForEach-Object {
+            if ($_ -match '^([^#][^=]+)=(.*)$') {
+                $name = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                # Remove quotes if present
+                $value = $value -replace '^["'']|["'']$'
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+            }
+        }
+    }
+}
+
+# Load environment variables
+Load-EnvironmentVariables
+
+# Use environment variables if API URL not provided
+if (-not $ApiUrl) {
+    $ProjectId = $env:PROJECT_ID
+    $Region = $env:REGION
+    $ServiceName = $env:SERVICE_NAME
+    
+    if ($ProjectId -and $Region -and $ServiceName) {
+        try {
+            $ApiUrl = gcloud run services describe $ServiceName --region=$Region --format="value(status.url)"
+            if (-not $ApiUrl) {
+                Write-Warning "Could not get service URL from gcloud. Please provide -ApiUrl parameter."
+                exit 1
+            }
+        } catch {
+            Write-Warning "Could not get service URL from gcloud. Please provide -ApiUrl parameter."
+            exit 1
+        }
+    } else {
+        Write-Error "API URL not provided and environment variables not found. Please set PROJECT_ID, REGION, SERVICE_NAME in .env or use -ApiUrl parameter."
+        exit 1
+    }
+}
 
 Write-Host "Claude Export Import Tool" -ForegroundColor Green
 Write-Host "ZIP File: $ZipFile" -ForegroundColor Cyan
