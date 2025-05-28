@@ -40,6 +40,7 @@ Thumbs.db
 claude_desktop_config*.json
 claude-mcp-config.json
 config.json
+merged_claude_desktop_config.json
 
 # Unused development files
 unused/

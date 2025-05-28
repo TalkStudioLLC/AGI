@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "agi-server": {
+      "command": "node",
+      "args": [
+        "/path/to/your/AGI/mcp-server.js"
+      ],
+      "env": {},
+      "description": "AGI server with persistent memory, reasoning, and reflection capabilities"
+    }
+  }
+}
+
+/* 
+Setup Instructions:
+
+1. Copy this file to claude_desktop_config.json in your Claude Desktop configuration directory
+2. Update the path in "args" to point to your actual AGI directory:
+   - Windows: "C:\\Users\\YourName\\Documents\\GitHub\\AGI\\mcp-server.js"
+   - macOS/Linux: "/Users/YourName/Documents/GitHub/AGI/mcp-server.js"
+3. Restart Claude Desktop
+4. The AGI server will be available with memory, reasoning, and reflection capabilities
+
+Default Claude Desktop config locations:
+- Windows: %APPDATA%\Claude\claude_desktop_config.json
+- macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+- Linux: ~/.config/Claude/claude_desktop_config.json
+
+The server provides these MCP tools:
+- remember() - Store persistent memories
+- recall() - Search stored memories
+- reflect() - Meta-cognitive analysis
+- reason() - Symbolic reasoning chains
+- assess_confidence() - Evaluate statement certainty
+*/
