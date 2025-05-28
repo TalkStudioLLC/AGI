@@ -81,11 +81,16 @@ class SimpleMCPServer {
     
     async initialize() {
         if (!this.initialized) {
-            await this.memoryManager.initialize();
-            await this.reasoningEngine.initialize();
-            this.initialized = true;
-            // All console.error output goes to stderr, not stdout
-        console.error('🧠 AGI MCP Server initialized with persistent memory and reasoning');
+            try {
+                console.error('🚀 Initializing AGI MCP Server components...');
+                await this.memoryManager.initialize();
+                await this.reasoningEngine.initialize();
+                this.initialized = true;
+                console.error('🧠 AGI MCP Server initialized with persistent memory and reasoning');
+            } catch (error) {
+                console.error('❌ Failed to initialize AGI MCP Server:', error);
+                throw error;
+            }
         }
     }
     
@@ -311,43 +316,64 @@ class SimpleMCPServer {
     
     // Tool implementations
     async handleRemember(args) {
-        const memory = await this.memoryManager.store({
-            content: args.content,
-            context: args.context || 'general',
-            emotional_weight: args.emotional_weight || 0,
-            timestamp: new Date().toISOString()
-        });
+        try {
+            const memory = await this.memoryManager.store({
+                content: args.content,
+                context: args.context || 'general',
+                emotional_weight: args.emotional_weight || 0,
+                timestamp: new Date().toISOString()
+            });
 
-        return {
-            content: [{
-                type: 'text',
-                text: `✅ Stored memory with ID: ${memory.id}. This information will persist across conversations.`
-            }]
-        };
-    }
-    
-    async handleRecall(args) {
-        const memories = await this.memoryManager.search(args.query, args.context);
-        
-        if (memories.length === 0) {
             return {
                 content: [{
                     type: 'text',
-                    text: `🔍 No memories found for "${args.query}"`
+                    text: `✅ Stored memory with ID: ${memory.id}. This information will persist across conversations.`
+                }]
+            };
+        } catch (error) {
+            console.error('❌ Error storing memory:', error);
+            return {
+                content: [{
+                    type: 'text',
+                    text: `❌ Failed to store memory: ${error.message}`
                 }]
             };
         }
-        
-        const memoryText = memories.map(m => 
-            `• ${m.content} (context: ${m.context}, confidence: ${(m.confidence * 100).toFixed(1)}%)`
-        ).join('\n');
-        
-        return {
-            content: [{
-                type: 'text',
-                text: `🔍 Found ${memories.length} relevant memories:\n\n${memoryText}`
-            }]
-        };
+    }
+    
+    async handleRecall(args) {
+        try {
+            const memories = await this.memoryManager.search(args.query, args.context);
+            
+            if (memories.length === 0) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `🔍 No memories found for "${args.query}"`
+                    }]
+                };
+            }
+            
+            const memoryText = memories.map(m => {
+                const date = new Date(m.timestamp).toLocaleDateString();
+                return `• [${date}] ${m.content} (context: ${m.context}, confidence: ${(m.confidence * 100).toFixed(1)}%)`;
+            }).join('\n');
+            
+            return {
+                content: [{
+                    type: 'text',
+                    text: `🧠 Found ${memories.length} relevant memories:\n\n${memoryText}`
+                }]
+            };
+        } catch (error) {
+            console.error('❌ Error recalling memories:', error);
+            return {
+                content: [{
+                    type: 'text',
+                    text: `❌ Failed to recall memories: ${error.message}`
+                }]
+            };
+        }
     }
     
     async handleReflect(args) {

@@ -21,7 +21,7 @@ class ReasoningEngine {
     async initialize() {
         // Load basic reasoning rules
         this.loadBasicRules();
-        console.log('Reasoning Engine initialized with', this.rules.size, 'rules');
+        console.error('🧮 Reasoning Engine initialized with', this.rules.size, 'rules');
     }
 
     loadBasicRules() {

@@ -15,15 +15,29 @@ class MemoryManager {
     constructor(dbPath = './memory.db') {
         this.dbPath = dbPath;
         this.db = null;
+        this.isInitialized = false;
     }
 
     async initialize() {
+        if (this.isInitialized) {
+            console.error('💾 MemoryManager already initialized');
+            return;
+        }
+        
         return new Promise((resolve, reject) => {
+            console.error(`🗃️  Initializing database at: ${this.dbPath}`);
+            
             this.db = new sqlite3.Database(this.dbPath, (err) => {
                 if (err) {
+                    console.error('❌ Database connection failed:', err);
                     reject(err);
                 } else {
-                    this.createTables().then(resolve).catch(reject);
+                    console.error('✅ Database connected successfully');
+                    this.createTables().then(() => {
+                        this.isInitialized = true;
+                        this.logMemoryStats();
+                        resolve();
+                    }).catch(reject);
                 }
             });
         });
@@ -112,6 +126,10 @@ class MemoryManager {
     }
 
     async store(memoryData) {
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+        
         const id = uuidv4();
         const {
             content,
@@ -125,21 +143,38 @@ class MemoryManager {
             parent_id = null
         } = memoryData;
 
-        await this.runQuery(
-            `INSERT INTO memories (id, content, context, type, emotional_weight, confidence, timestamp, person_id, tags, parent_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, content, context, type, emotional_weight, confidence, timestamp, person_id, tags, parent_id]
-        );
+        try {
+            await this.runQuery(
+                `INSERT INTO memories (id, content, context, type, emotional_weight, confidence, timestamp, person_id, tags, parent_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, content, context, type, emotional_weight, confidence, timestamp, person_id, tags, parent_id]
+            );
 
-        // Update relationship if person_id provided
-        if (person_id) {
-            await this.updateRelationship(person_id, timestamp);
+            console.error(`💾 Stored memory: ${id} - "${content.substring(0, 50)}..."`);  
+            
+            // Update relationship if person_id provided
+            if (person_id) {
+                await this.updateRelationship(person_id, timestamp);
+            }
+
+            return { id, content, context, type, emotional_weight, confidence, timestamp, person_id, tags, parent_id };
+        } catch (error) {
+            console.error('❌ Failed to store memory:', error);
+            throw error;
         }
-
-        return { id, ...memoryData };
     }
 
     async search(query, context = null, limit = 10) {
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+        
+        console.error(`🔍 Searching for: "${query}" in context: ${context || 'all'}`);
+        
+        // Expand the search query with related terms
+        const expandedTerms = this.expandSearchTerms(query);
+        console.error(`🔍 Expanded search terms: ${expandedTerms.join(', ')}`);
+        
         let sql = `
             SELECT *, 
                    CASE 
@@ -148,32 +183,65 @@ class MemoryManager {
                        WHEN context LIKE ? THEN 0.6
                        WHEN tags LIKE ? THEN 0.5
                        ELSE 0.3
-                   END as relevance_score
+                   END as base_relevance_score
             FROM memories 
             WHERE content LIKE ? OR context LIKE ? OR tags LIKE ?
         `;
         
         const searchPattern = `%${query}%`;
         const exactPattern = `%${query}%`;
-        const params = [
+        let params = [
             exactPattern, searchPattern, searchPattern, searchPattern,
             searchPattern, searchPattern, searchPattern
         ];
+
+        // Add expanded term searches
+        const expandedConditions = [];
+        expandedTerms.forEach(term => {
+            if (term !== query) {
+                expandedConditions.push('content LIKE ? OR context LIKE ? OR tags LIKE ?');
+                params.push(`%${term}%`, `%${term}%`, `%${term}%`);
+            }
+        });
+        
+        if (expandedConditions.length > 0) {
+            sql += ` OR (${expandedConditions.join(' OR ')})`;
+        }
 
         if (context) {
             sql += ` AND context = ?`;
             params.push(context);
         }
 
-        sql += ` ORDER BY relevance_score DESC, emotional_weight DESC, timestamp DESC LIMIT ?`;
+        sql += ` ORDER BY base_relevance_score DESC, emotional_weight DESC, timestamp DESC LIMIT ?`;
         params.push(limit);
 
-        const results = await this.allQuery(sql, params);
-        
-        return results.map(row => ({
-            ...row,
-            confidence: row.relevance_score * row.confidence
-        }));
+        try {
+            const results = await this.allQuery(sql, params);
+            
+            // Calculate semantic relevance scores
+            const scoredResults = results.map(row => {
+                const semanticScore = this.calculateSemanticRelevance(query, row.content, expandedTerms);
+                return {
+                    ...row,
+                    confidence: (row.base_relevance_score * 0.6 + semanticScore * 0.4) * row.confidence
+                };
+            });
+            
+            // Re-sort by combined score
+            scoredResults.sort((a, b) => b.confidence - a.confidence);
+            
+            console.error(`📊 Found ${scoredResults.length} memories matching "${query}"`);
+            
+            if (scoredResults.length > 0) {
+                console.error(`📝 Sample results: ${scoredResults.slice(0, 2).map(r => `"${r.content.substring(0, 40)}..." (score: ${r.confidence.toFixed(2)})`).join(', ')}`);
+            }
+            
+            return scoredResults;
+        } catch (error) {
+            console.error('❌ Search failed:', error);
+            return [];
+        }
     }
 
     async getMemoriesByType(type, limit = 50) {
@@ -257,17 +325,149 @@ class MemoryManager {
     }
 
     async getMemoryStats() {
-        const totalMemories = await this.getQuery(`SELECT COUNT(*) as count FROM memories`);
-        const memoryTypes = await this.allQuery(`SELECT type, COUNT(*) as count FROM memories GROUP BY type`);
-        const relationshipCount = await this.getQuery(`SELECT COUNT(*) as count FROM relationships`);
-        const reasoningCount = await this.getQuery(`SELECT COUNT(*) as count FROM reasoning_history`);
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+        
+        try {
+            const totalMemories = await this.getQuery(`SELECT COUNT(*) as count FROM memories`);
+            const memoryTypes = await this.allQuery(`SELECT type, COUNT(*) as count FROM memories GROUP BY type`);
+            const relationshipCount = await this.getQuery(`SELECT COUNT(*) as count FROM relationships`);
+            const reasoningCount = await this.getQuery(`SELECT COUNT(*) as count FROM reasoning_history`);
 
-        return {
-            total_memories: totalMemories.count,
-            memory_types: memoryTypes,
-            relationships: relationshipCount.count,
-            reasoning_sessions: reasoningCount.count
-        };
+            return {
+                total_memories: totalMemories.count,
+                memory_types: memoryTypes,
+                relationships: relationshipCount.count,
+                reasoning_sessions: reasoningCount.count
+            };
+        } catch (error) {
+            console.error('❌ Failed to get memory stats:', error);
+            return {
+                total_memories: 0,
+                memory_types: [],
+                relationships: 0,
+                reasoning_sessions: 0
+            };
+        }
+    }
+    
+    async logMemoryStats() {
+        try {
+            const stats = await this.getMemoryStats();
+            console.error(`📊 Memory Database Status:`);
+            console.error(`   Total memories: ${stats.total_memories}`);
+            console.error(`   Relationships: ${stats.relationships}`);
+            console.error(`   Reasoning sessions: ${stats.reasoning_sessions}`);
+            
+            if (stats.memory_types.length > 0) {
+                console.error(`   Memory types: ${stats.memory_types.map(t => `${t.type}(${t.count})`).join(', ')}`);
+            }
+            
+            // Show recent memories
+            const recentMemories = await this.allQuery(
+                `SELECT content, context, timestamp FROM memories ORDER BY timestamp DESC LIMIT 3`
+            );
+            
+            if (recentMemories.length > 0) {
+                console.error(`   Recent memories:`);
+                recentMemories.forEach(m => {
+                    const date = new Date(m.timestamp).toLocaleString();
+                    console.error(`     - [${m.context}] ${m.content.substring(0, 40)}... (${date})`);
+                });
+            }
+        } catch (error) {
+            console.error('❌ Failed to log memory stats:', error);
+        }
+    }
+
+    expandSearchTerms(query) {
+        const terms = new Set([query]);
+        const lowercaseQuery = query.toLowerCase();
+        
+        // Drink/beverage related expansions
+        if (lowercaseQuery.includes('drink') || lowercaseQuery.includes('beverage')) {
+            terms.add('coffee');
+            terms.add('tea');
+            terms.add('water');
+            terms.add('soda');
+            terms.add('juice');
+            terms.add('beer');
+            terms.add('wine');
+            terms.add('cocktail');
+            terms.add('likes');
+        }
+        
+        // Preference related expansions
+        if (lowercaseQuery.includes('prefer') || lowercaseQuery.includes('like')) {
+            terms.add('favorite');
+            terms.add('enjoy');
+            terms.add('love');
+        }
+        
+        // User/person related expansions
+        if (lowercaseQuery.includes('user') || lowercaseQuery.includes('i ') || lowercaseQuery.includes('my ')) {
+            terms.add('User');
+            terms.add('I');
+            terms.add('my');
+        }
+        
+        // Food related expansions
+        if (lowercaseQuery.includes('food') || lowercaseQuery.includes('eat')) {
+            terms.add('pizza');
+            terms.add('pasta');
+            terms.add('salad');
+            terms.add('sandwich');
+        }
+        
+        // Technical/project related expansions
+        if (lowercaseQuery.includes('project') || lowercaseQuery.includes('code')) {
+            terms.add('AGI');
+            terms.add('MCP');
+            terms.add('server');
+            terms.add('development');
+        }
+        
+        return Array.from(terms);
+    }
+    
+    calculateSemanticRelevance(originalQuery, content, expandedTerms) {
+        const queryWords = originalQuery.toLowerCase().split(/\s+/);
+        const contentWords = content.toLowerCase().split(/\s+/);
+        
+        let score = 0;
+        
+        // Direct word matches
+        queryWords.forEach(queryWord => {
+            if (contentWords.some(contentWord => contentWord.includes(queryWord))) {
+                score += 0.3;
+            }
+        });
+        
+        // Expanded term matches
+        expandedTerms.forEach(term => {
+            if (content.toLowerCase().includes(term.toLowerCase())) {
+                score += 0.2;
+            }
+        });
+        
+        // Concept matching bonuses
+        const queryLower = originalQuery.toLowerCase();
+        const contentLower = content.toLowerCase();
+        
+        // Drink preference concept
+        if ((queryLower.includes('drink') || queryLower.includes('beverage')) && 
+            (contentLower.includes('coffee') || contentLower.includes('tea') || contentLower.includes('water'))) {
+            score += 0.5;
+        }
+        
+        // Preference concept
+        if ((queryLower.includes('like') || queryLower.includes('prefer')) && 
+            (contentLower.includes('likes') || contentLower.includes('love') || contentLower.includes('enjoy'))) {
+            score += 0.3;
+        }
+        
+        return Math.min(1.0, score);
     }
 
     async close() {

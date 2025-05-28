@@ -333,11 +333,11 @@ class IntegrationLayer {
     identifyUncertaintyAreas(reflection) {
         const areas = [];
         
-        if (reflection.confidence_in_understanding < 0.7) {
+        if (reflection && typeof reflection.confidence_in_understanding === 'number' && reflection.confidence_in_understanding < 0.7) {
             areas.push('topic_understanding');
         }
         
-        if (reflection.knowledge_gaps.length > 2) {
+        if (reflection && reflection.knowledge_gaps && reflection.knowledge_gaps.length > 2) {
             areas.push('knowledge_completeness');
         }
 
@@ -347,11 +347,11 @@ class IntegrationLayer {
     identifyGrowthOpportunities(reflection, memories) {
         const opportunities = [];
 
-        if (reflection.knowledge_gaps.includes('limited_perspective')) {
+        if (reflection && reflection.knowledge_gaps && reflection.knowledge_gaps.includes('limited_perspective')) {
             opportunities.push('seek_diverse_viewpoints');
         }
 
-        if (memories.filter(m => m.type === 'semantic').length < memories.length * 0.3) {
+        if (memories && memories.length > 0 && memories.filter(m => m.type === 'semantic').length < memories.length * 0.3) {
             opportunities.push('build_conceptual_knowledge');
         }
 
