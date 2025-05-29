@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Initialize services
-const memoryManager = new CloudMemoryManager('talkstudio-fb-memory-data');
+const memoryManager = new CloudMemoryManager('claude-memory-data');
 const claudeClient = new ClaudeClient(process.env.ANTHROPIC_API_KEY);
 
 // Make services available to routes
