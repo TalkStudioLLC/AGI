@@ -40,7 +40,7 @@ A cloud-deployed memory system for Claude AI using Google Cloud Run and Docker.
 ## Architecture
 
 - **Database**: SQLite with Cloud Storage persistence
-- **Registry**: `us-east4-docker.pkg.dev/talkstudio-fb/claude-memory`
+- **Registry**: `us-eastx-docker.pkg.dev/x/claude-memory`
 - **Region**: `us-east4`
 - **Runtime**: Node.js 20 Alpine
 
