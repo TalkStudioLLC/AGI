@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+duckdb
+gplearn
+sympy
+scikit-learn
+numpy
+pandas

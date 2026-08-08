@@ -1,0 +1,15 @@
+# Build context for Dockerfile.memory (repo root).
+# Keep the image to runtime code only — data and unrelated projects stay out.
+node_modules/
+.git/
+sr-lab/
+unused/
+blender-mcp-setup-package/
+claude-memory-api/
+docs/
+examples/
+memory.db
+simple-memory.json
+test-*.js
+*.md
+.model-cache/

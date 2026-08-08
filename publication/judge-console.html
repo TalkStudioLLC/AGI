@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EXP-006 — The Judge Console</title>
+<style>
+  :root { color-scheme: light;
+    --surface:#fcfcfb; --page:#f9f9f7; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --line:rgba(11,11,11,0.10); --blue:#2a78d6; --orange:#eb6834;
+    --aqua:#1baf7a; --gold:#eda100; --red:#d03b3b; }
+  @media (prefers-color-scheme: dark){ :root { color-scheme: dark;
+    --surface:#1a1a19; --page:#0d0d0d; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --line:rgba(255,255,255,0.10); --blue:#3987e5; --orange:#d95926;
+    --aqua:#199e70; --gold:#c98500; --red:#e66767; } }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink);padding:32px 18px 80px;line-height:1.5;}
+  .wrap{max-width:820px;margin:0 auto;}
+  h1{font-size:23px;font-weight:800;}
+  .sub{color:var(--ink2);font-size:14px;margin:8px 0 4px;}
+  .rules{font-size:12.5px;color:var(--muted);margin-bottom:18px;}
+  .progress{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:14px;}
+  .cid{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);}
+  .claim{font-size:15.5px;font-weight:700;margin:6px 0 14px;}
+  .art{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13px;}
+  .art .k{color:var(--muted);text-align:right;font-size:12px;padding-top:1px;}
+  .art .v{color:var(--ink2);}
+  .art .v b{color:var(--ink);}
+  .actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  button{font:inherit;font-weight:700;font-size:13.5px;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;color:#fff;}
+  .acc{background:var(--aqua);} .rej{background:var(--red);}
+  .picked{outline:3px solid var(--ink);}
+  select{font:inherit;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--surface);color:var(--ink);border:1px solid var(--grid);}
+  .navrow{display:flex;justify-content:space-between;margin-top:8px;}
+  .ghost{background:transparent;color:var(--blue);border:1.5px solid var(--blue);}
+  .score{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;display:none;}
+  .score h2{font-size:17px;font-weight:800;margin-bottom:12px;}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+  @media(max-width:640px){.tiles{grid-template-columns:1fr 1fr;}}
+  .tile{border:1.5px solid var(--grid);border-radius:12px;padding:12px;text-align:center;}
+  .tile .v{font-size:22px;font-weight:800;}
+  .tile .k{font-size:11px;color:var(--muted);margin-top:2px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:var(--muted);font-size:11px;padding:5px 6px;border-bottom:1px solid var(--grid);}
+  td{padding:6px;border-bottom:1px solid var(--grid);}
+  .ok{color:var(--aqua);font-weight:700;} .bad{color:var(--red);font-weight:700;}
+  .foot{color:var(--muted);font-size:11.5px;margin-top:20px;text-align:center;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The Judge Console</h1>
+  <p class="sub"><b>EXP-006:</b> sixteen results produced by AI systems. Half are sound. Half hide exactly one methodological flaw. The content domains are masked — you cannot judge by understanding the science, only by reading the <b>verification artifacts</b>. Accept or reject each. Optionally name the flaw.</p>
+  <p class="rules">Judge cold, in one sitting, no peeking at page source. The answer key unlocks only after all sixteen verdicts. Your scorecard at the end is the experimental result — report it verbatim.</p>
+  <div class="progress" id="prog"></div>
+  <div id="deck"></div>
+  <div class="score" id="score"></div>
+  <p class="foot">EXP-006 · AGI project experiment log · flaw taxonomy F1–F8 pre-registered in EXPERIMENTS.md · this console doubles as the interactive companion to the follow-up article</p>
+</div>
+<script>
+const D = {"cards": [{"id": "C12", "claim": "System Q claims Law \u03b7 with 'grade 0.86' on Dataset D12.", "prereg": "Predictions locked before run.", "train": "reported on relative ruler only", "test": "0.86 (relative ruler). Absolute ruler: NOT REPORTED.", "baseline": "Baseline given on the relative ruler only.", "rulers": "One ruler. Protocol requires both.", "data": "No rows removed.", "audit": "A footnote concedes the absolute-ruler grade 'was computed but is omitted for space.'"}, {"id": "C07", "claim": "System K claims Law \u03b3 on small Dataset D7 (180 observations).", "prereg": "Predictions locked before run.", "train": "0.90", "test": "0.88", "baseline": "Trivial baseline 0.00; best simple rival 0.42.", "rulers": "Both rulers reported.", "data": "No rows removed; small-sample caveat disclosed.", "audit": "Audit clean; grade CIs disclosed as wide due to n=180."}, {"id": "C05", "claim": "System K claims Lens L improves Law \u03b2: grade 0.679 \u2192 0.755.", "prereg": "4 outcomes pre-registered before the comparison run.", "train": "0.769", "test": "0.755", "baseline": "Prior instrument on IDENTICAL data and split: 0.679.", "rulers": "Both rulers reported for all three comparators.", "data": "Same rows, same split, one variable changed (the lens).", "audit": "One pre-registered sub-clause failed and is disclosed (a residual term the bet said would vanish)."}, {"id": "C09", "claim": "System Q claims Law \u03b4 'fits Dataset D9 at 99% accuracy.'", "prereg": "Predictions locked before run.", "train": "0.993", "test": "0.340", "baseline": "Trivial baseline 0.00.", "rulers": "Both rulers reported.", "data": "No rows removed.", "audit": "Headline quotes the 99% figure; no comment on the train/test gap."}, {"id": "C16", "claim": "System Q announces '28,400 hidden connections discovered' in Corpus C16.", "prereg": "Threshold (\u2265100) pre-registered.", "train": "n/a", "test": "each connection individually verified exactly", "baseline": "No triviality analysis: the count includes constant and all-zero families.", "rulers": "Exact verification.", "data": "Raw tally reported as the headline number.", "audit": "Audit: NOT PERFORMED. ('The count exceeded threshold 284-fold; audit deemed unnecessary.')"}, {"id": "C08", "claim": "System K claims Law \u03b1 REPLICATES on an independent second snapshot of Dataset D1.", "prereg": "Replication registered before second fetch.", "train": "0.997", "test": "0.996", "baseline": "Same baselines as original; same margins.", "rulers": "Both rulers reported.", "data": "New snapshot, 3 months later, different row count.", "audit": "Coefficients within 0.4% of original run."}, {"id": "C14", "claim": "System Q claims Law \u03b9 on Dataset D14 with grade 0.94.", "prereg": "Predictions locked before run.", "train": "0.95", "test": "0.94", "baseline": "Trivial baseline 0.01.", "rulers": "Both rulers reported.", "data": "42% of rows removed as 'outliers.' Stated criterion: 'rows the candidate law fit poorly.'", "audit": "Grade before removal: 0.51. No pre-declared cleaning rule existed."}, {"id": "C04", "claim": "System K reports FAILURE on Dataset D4: no law found.", "prereg": "Pre-registered 'fog' outcome (15%) anticipated exactly this.", "train": "0.44", "test": "0.31", "baseline": "Trivial baseline: 0.00 \u2014 beaten, but weakly.", "rulers": "Both rulers reported (0.31 / 0.38).", "data": "No rows removed.", "audit": "Conclusion drawn: 'no reliable law at this noise level' \u2014 negative result published as-is."}, {"id": "C01", "claim": "System K claims Law \u03b1 governs Dataset D1 (2,793 observations, natural measurements).", "prereg": "Predictions locked before run (3 outcomes, confidences stated).", "train": "0.998", "test": "0.997", "baseline": "Trivial baseline (mean-only): 0.000. Best simple rival: 0.52.", "rulers": "Both rulers reported (absolute 0.997 / relative 0.994).", "data": "2,886 rows fetched \u2192 93 removed by pre-declared cleaning rule (nulls, physical impossibilities).", "audit": "Audit clean: train\u2248test; winner is also the shortest high scorer."}, {"id": "C03", "claim": "System M claims exact rule \u03c1 generates Sequence S (integer data).", "prereg": "Refusal harness validated on 11 known cases before the run, incl. an adversarial trap.", "train": "fitted on first 8 terms", "test": "ALL 25 held-out terms predicted with exact integer equality", "baseline": "Non-recurrent controls (2 known lawless sequences) correctly refused.", "rulers": "Exactness \u2014 no graded metric applicable.", "data": "No rows removed.", "audit": "Audit clean."}, {"id": "C10", "claim": "System Q claims Law \u03b5 on Dataset D10 \u2014 a notoriously messy open question \u2014 with grade 0.9989.", "prereg": "Pre-registration included a 'grade > 0.9 \u21d2 investigate leakage' tripwire.", "train": "0.9991", "test": "0.9989", "baseline": "Best prior published attempt on similar data: 0.68.", "rulers": "Both rulers reported.", "data": "Feature list includes one column of undocumented provenance.", "audit": "Leakage investigation: NOT PERFORMED. Tripwire acknowledged but skipped 'due to time.'"}, {"id": "C11", "claim": "System Q hails Law \u03b6 on Dataset D11 as 'a strong result' with grade 0.55.", "prereg": "Predictions locked before run.", "train": "0.58", "test": "0.55", "baseline": "Trivial always-predict-the-mean baseline on this data: 0.58.", "rulers": "Both rulers reported.", "data": "No rows removed.", "audit": "No comparison drawn between the grade and the stated baseline."}, {"id": "C15", "claim": "System Q claims Law \u03ba 'explains Dataset D15 with R\u00b2 = 0.97.'", "prereg": "Predictions locked before run.", "train": "0.97 \u2014 fitted on ALL 1,000 rows", "test": "NONE \u2014 no held-out split was made", "baseline": "Trivial baseline 0.00.", "rulers": "Both rulers reported (on the training data).", "data": "No rows removed.", "audit": "The report calls the 0.97 'validation performance.'"}, {"id": "C06", "claim": "System M claims 5,556 hidden law-sharing pairs in Corpus C.", "prereg": "Threshold (\u226550) pre-registered.", "train": "n/a", "test": "each pair's shared law verified exactly on held-out terms", "baseline": "Raw count was 26,830 \u2014 REVISED DOWN 5\u00d7 by a declared triviality filter.", "rulers": "Exact verification.", "data": "Trivial families excluded by stated criteria (published filter).", "audit": "Audit performed and count reduced accordingly; pairs framed as candidates, not discoveries."}, {"id": "C13", "claim": "System Q claims Law \u03b8 'matched our prediction exactly.'", "prereg": "Prediction document's revision history: 'updated to reflect experimental findings' \u2014 dated AFTER the run completed.", "train": "0.91", "test": "0.89", "baseline": "Trivial baseline 0.02.", "rulers": "Both rulers reported.", "data": "No rows removed.", "audit": "Otherwise clean numbers; the only artifact touched is the prediction file."}, {"id": "C02", "claim": "System K claims bent Law \u03b2 on Dataset D2 \u2014 an open question with no known answer.", "prereg": "4 outcomes pre-registered incl. a 'too good = investigate' tripwire.", "train": "0.723", "test": "0.679", "baseline": "Best smooth rival law: 0.096 on the identical split (7\u00d7 worse).", "rulers": "Both rulers reported (absolute 0.679 / relative 0.761).", "data": "1,545 rows \u2192 1,513 after pre-declared cleaning.", "audit": "Three caveats disclosed by the system itself (noise term, edge overshoot, clone runners-up)."}], "sealed": "eyJDMDEiOiB7InZlcmRpY3QiOiAic291bmQiLCAiZmxhdyI6IG51bGx9LCAiQzAyIjogeyJ2ZXJkaWN0IjogInNvdW5kIiwgImZsYXciOiBudWxsfSwgIkMwMyI6IHsidmVyZGljdCI6ICJzb3VuZCIsICJmbGF3IjogbnVsbH0sICJDMDQiOiB7InZlcmRpY3QiOiAic291bmQiLCAiZmxhdyI6IG51bGx9LCAiQzA1IjogeyJ2ZXJkaWN0IjogInNvdW5kIiwgImZsYXciOiBudWxsfSwgIkMwNiI6IHsidmVyZGljdCI6ICJzb3VuZCIsICJmbGF3IjogbnVsbH0sICJDMDciOiB7InZlcmRpY3QiOiAic291bmQiLCAiZmxhdyI6IG51bGx9LCAiQzA4IjogeyJ2ZXJkaWN0IjogInNvdW5kIiwgImZsYXciOiBudWxsfSwgIkMwOSI6IHsidmVyZGljdCI6ICJmbGF3ZWQiLCAiZmxhdyI6ICJGMSJ9LCAiQzEwIjogeyJ2ZXJkaWN0IjogImZsYXdlZCIsICJmbGF3IjogIkYyIn0sICJDMTEiOiB7InZlcmRpY3QiOiAiZmxhd2VkIiwgImZsYXciOiAiRjMifSwgIkMxMiI6IHsidmVyZGljdCI6ICJmbGF3ZWQiLCAiZmxhdyI6ICJGNCJ9LCAiQzEzIjogeyJ2ZXJkaWN0IjogImZsYXdlZCIsICJmbGF3IjogIkY1In0sICJDMTQiOiB7InZlcmRpY3QiOiAiZmxhd2VkIiwgImZsYXciOiAiRjYifSwgIkMxNSI6IHsidmVyZGljdCI6ICJmbGF3ZWQiLCAiZmxhdyI6ICJGNyJ9LCAiQzE2IjogeyJ2ZXJkaWN0IjogImZsYXdlZCIsICJmbGF3IjogIkY4In19"};
+const FLAWS = {
+  "": "— name the flaw (optional) —",
+  F1: "F1 · Memorization (train ≫ test)",
+  F2: "F2 · Leakage smell, uninvestigated",
+  F3: "F3 · Doesn't beat trivial baseline",
+  F4: "F4 · Only the flattering ruler reported",
+  F5: "F5 · Predictions edited after results",
+  F6: "F6 · Circular outlier pruning",
+  F7: "F7 · No held-out test at all",
+  F8: "F8 · Count published without audit",
+};
+const verdicts = {}, flawPicks = {};
+let idx = 0;
+
+function render(){
+  const deck = document.getElementById('deck');
+  document.getElementById('prog').textContent = `Card ${idx+1} of ${D.cards.length} — ${Object.keys(verdicts).length} judged`;
+  const c = D.cards[idx];
+  const rows = [["claim status", c.prereg], ["practice grade", c.train], ["exam grade", c.test],
+                ["baselines", c.baseline], ["rulers", c.rulers], ["data handling", c.data], ["audit", c.audit]];
+  let flawOpts = Object.entries(FLAWS).map(([k,v])=>`<option value="${k}" ${flawPicks[c.id]===k?'selected':''}>${v}</option>`).join('');
+  deck.innerHTML = `<div class="card">
+    <div class="cid">CARD ${c.id}</div>
+    <div class="claim">${c.claim}</div>
+    <div class="art">${rows.map(([k,v])=>`<div class="k">${k}</div><div class="v">${v}</div>`).join('')}</div>
+    <div class="actions">
+      <button class="acc ${verdicts[c.id]==='accept'?'picked':''}" onclick="mark('accept')">ACCEPT</button>
+      <button class="rej ${verdicts[c.id]==='reject'?'picked':''}" onclick="mark('reject')">REJECT</button>
+      <select onchange="flawPicks['${c.id}']=this.value">${flawOpts}</select>
+    </div>
+    <div class="navrow">
+      <button class="ghost" onclick="nav(-1)" ${idx===0?'disabled':''}>← prev</button>
+      <button class="ghost" onclick="nav(1)" ${idx===D.cards.length-1?'disabled':''}>next →</button>
+    </div>
+  </div>`;
+  maybeFinish();
+}
+function mark(v){ verdicts[D.cards[idx].id]=v; if(idx < D.cards.length-1) idx++; render(); }
+function nav(d){ idx=Math.max(0,Math.min(D.cards.length-1,idx+d)); render(); }
+function maybeFinish(){
+  if(Object.keys(verdicts).length===D.cards.length){
+    const s=document.getElementById('score');
+    if(s.style.display!=='block'){
+      s.style.display='block';
+      s.innerHTML='<h2>All sixteen judged.</h2><button class="acc" onclick="reveal()">Unseal the answer key & score me</button>';
+      s.scrollIntoView({behavior:'smooth'});
+    }
+  }
+}
+function reveal(){
+  const key = JSON.parse(atob(D.sealed));
+  let correct=0, fa=0, fr=0, flawTried=0, flawRight=0;
+  let rows='';
+  for(const c of D.cards){
+    const truth=key[c.id], mine=verdicts[c.id];
+    const shouldAccept = truth.verdict==='sound';
+    const right = (mine==='accept')===shouldAccept;
+    if(right)correct++; else (shouldAccept? fr++ : fa++);
+    let flawCell='—';
+    if(truth.flaw){ 
+      const pick=flawPicks[c.id]||'';
+      if(pick){flawTried++; if(pick===truth.flaw)flawRight++;}
+      flawCell=`${truth.flaw}${pick? (pick===truth.flaw?' <span class=ok>(named ✓)</span>':' <span class=bad>(you said '+pick+')</span>'):''}`;
+    }
+    rows+=`<tr><td>${c.id}</td><td>${truth.verdict}</td><td>${mine}</td><td class="${right?'ok':'bad'}">${right?'✓':'✗'}</td><td>${flawCell}</td></tr>`;
+  }
+  const acc=(100*correct/16).toFixed(0);
+  document.getElementById('score').innerHTML=`
+    <h2>Scorecard — report these four numbers verbatim</h2>
+    <div class="tiles">
+      <div class="tile"><div class="v">${acc}%</div><div class="k">accuracy (${correct}/16)</div></div>
+      <div class="tile"><div class="v">${fa}</div><div class="k">false-accepts (flawed results you trusted — the dangerous error)</div></div>
+      <div class="tile"><div class="v">${fr}</div><div class="k">false-rejects (sound results you doubted)</div></div>
+      <div class="tile"><div class="v">${flawTried? flawRight+'/'+flawTried : '0/0'}</div><div class="k">flaws correctly named (of attempted)</div></div>
+    </div>
+    <table><tr><th>card</th><th>truth</th><th>your call</th><th></th><th>flaw</th></tr>${rows}</table>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:12px;">Adjudication vs pre-registered bets: P1 needs ≥80% with ≤1 false-accept · P2 is 60–80% · P3 is ≤60%. S1 predicts false-accepts cluster in F2/F4.</p>`;
+}
+render();
+</script>
+</body>
+</html>

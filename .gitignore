@@ -47,3 +47,21 @@ unused/
 
 # Google Cloud
 .gcloudignore
+# Memory data — NEVER publish (user-owned memories)
+memory.db
+simple-memory.json
+.model-cache/
+
+# Session/work context notes
+claude-code-memory.txt
+
+# Large fetched datasets (reproducible via commands in EXPERIMENTS.md)
+oeis-miner/*.gz
+oeis-miner/stripped
+oeis-miner/names
+oeis-miner/census.json
+
+# Build outputs
+sr-lab/frontend/dist/
+sr-lab/frontend/node_modules/
+sr-lab/backend/data/*.duckdb

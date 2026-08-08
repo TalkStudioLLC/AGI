@@ -1,0 +1,29 @@
+# CloudBuild configuration for AGI Memory API
+steps:
+  # Install dependencies
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['ci', '--only=production']
+    
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/agi-memory-api:$BUILD_ID',
+      '-t', 'gcr.io/$PROJECT_ID/agi-memory-api:latest',
+      '.'
+    ]
+    
+  # Push Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/agi-memory-api']
+
+# Build timeout
+timeout: '1200s'
+
+# Artifacts to store
+options:
+  logging: CLOUD_LOGGING_ONLY
+  
+images:
+  - 'gcr.io/$PROJECT_ID/agi-memory-api:latest'

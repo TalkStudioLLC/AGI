@@ -8,7 +8,7 @@
  * - Learning from experience
  */
 
-const _ = require('lodash');
+import _ from 'lodash';
 
 class IntegrationLayer {
     constructor(memoryManager, reasoningEngine) {
@@ -446,4 +446,4 @@ ${finalReflection.growth_opportunities?.join(', ') || 'None'}
     }
 }
 
-module.exports = { IntegrationLayer };
+export { IntegrationLayer };

@@ -10,7 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 // Cloud API configuration
-const CLOUD_API_BASE_URL = 'https://claude-memory-api-3ibabnlfhq-uk.a.run.app';
+const CLOUD_API_BASE_URL = 'https://agi-memory-api-3ibabnlfhq-uk.a.run.app';
 
 // HTTP client function
 async function apiRequest(endpoint, method = 'GET', body = null) {

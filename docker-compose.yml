@@ -1,0 +1,54 @@
+# AGI repo — root Docker Compose
+# Canonical compose file for the repo. Run from C:\Users\Tom\Documents\GitHub\AGI.
+#
+# Profiles (the frontend/backend flags):
+#   docker compose up --build                        → full sr-lab stack (default via .env)
+#   docker compose --profile backend  up --build     → backend only (API on :8000)
+#   docker compose --profile frontend up --build     → frontend only (nginx on :5173)
+#   docker compose --profile full     up --build     → both, explicit
+#   docker compose --profile memory   build          → build the F3IL memory MCP image
+#
+# The CLI --profile flag overrides the COMPOSE_PROFILES=full default in .env.
+# Frontend-only works even with no backend container: nginx resolves the
+# backend lazily per request (see sr-lab/frontend/nginx.conf) and returns
+# 502 on /api until a backend is reachable.
+#
+# NOTE on the memory service: it is BUILD-ONLY here. MCP servers talk
+# JSON-RPC over stdio, and Claude Desktop spawns the process itself — so the
+# container is launched by Claude Desktop via `docker run -i --rm ...`
+# (see MEMORY_SYSTEM_FIXED.md v3.1), not by `compose up`. Use this profile
+# to (re)build the image:  docker compose --profile memory build
+
+services:
+  backend:
+    build: ./sr-lab/backend
+    container_name: sr-lab-backend
+    profiles: ["full", "backend"]
+    volumes:
+      - srlab-data:/app/data      # DuckDB persists across container rebuilds
+      # real-world experiment datasets: drop CSVs here on the host, restart backend
+      - ./sr-lab/backend/data/real:/app/data/real:ro
+    ports:
+      - "8000:8000"               # published for frontend-dev against dockerized API
+    restart: unless-stopped
+
+  frontend:
+    build: ./sr-lab/frontend
+    container_name: sr-lab-frontend
+    profiles: ["full", "frontend"]
+    ports:
+      - "5173:80"                 # http://localhost:5173
+    restart: unless-stopped
+
+  memory:
+    build:
+      context: .
+      dockerfile: Dockerfile.memory
+    image: agi-memory-server
+    profiles: ["memory"]          # build-only; launched by Claude Desktop, not compose
+    stdin_open: true              # documents the stdio contract for manual testing:
+    volumes:                      #   docker compose --profile memory run --rm memory
+      - .:/data
+
+volumes:
+  srlab-data:

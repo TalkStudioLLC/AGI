@@ -6,13 +6,24 @@
  * Manual JSON-RPC implementation that bypasses MCP SDK issues
  */
 
-const { MemoryManager } = require('./src/memory/manager.js');
-const { ReasoningEngine } = require('./src/reasoning/engine.js');
-const { IntegrationLayer } = require('./src/integration/layer.js');
+import { MemoryManager } from './src/memory/manager.js';
+import { ReasoningEngine } from './src/reasoning/engine.js';
+import { IntegrationLayer } from './src/integration/layer.js';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class SimpleMCPServer {
     constructor() {
-        this.memoryManager = new MemoryManager();
+        // DB path resolution:
+        //   1. F3IL_DB_PATH env (set by the Docker container to the bind-mounted
+        //      host file, so memory stays a plain file the user owns)
+        //   2. otherwise next to this server file (host-node mode) — never
+        //      cwd-relative, since Claude Desktop doesn't launch from this folder.
+        const dbPath = process.env.F3IL_DB_PATH || join(__dirname, 'memory.db');
+        this.memoryManager = new MemoryManager(dbPath);
         this.reasoningEngine = new ReasoningEngine();
         this.integrationLayer = new IntegrationLayer(this.memoryManager, this.reasoningEngine);
         
@@ -22,18 +33,25 @@ class SimpleMCPServer {
     
     setupStdio() {
         process.stdin.setEncoding('utf8');
+        this.stdinBuffer = '';
         process.stdin.on('data', async (data) => {
             try {
-                const lines = data.trim().split('\n');
-                for (const line of lines) {
-                    if (line.trim()) {
-                        await this.handleMessage(line.trim());
+                // Buffer chunks: a JSON-RPC line may arrive split across chunks,
+                // and multiple lines may arrive in one chunk.
+                this.stdinBuffer += data;
+                let newlineIdx;
+                while ((newlineIdx = this.stdinBuffer.indexOf('\n')) !== -1) {
+                    const line = this.stdinBuffer.slice(0, newlineIdx).trim();
+                    this.stdinBuffer = this.stdinBuffer.slice(newlineIdx + 1);
+                    if (line) {
+                        await this.handleMessage(line);
                     }
                 }
             } catch (error) {
                 this.sendError(null, -32603, `Parse error: ${error.message}`);
             }
         });
+        process.stdin.resume();
     }
     
     async handleMessage(messageStr) {
@@ -478,9 +496,14 @@ class SimpleMCPServer {
     }
 }
 
-if (require.main === module) {
+// Check if this is the main module (cross-platform: on Windows,
+// `file://${process.argv[1]}` produced 'file://C:\\...' which never matched
+// import.meta.url ('file:///C:/...'), so the server silently never started).
+const isMain = process.argv[1] &&
+    import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
     console.error('🧠 Starting Simple MCP AGI Server...');
     new SimpleMCPServer();
 }
 
-module.exports = { SimpleMCPServer };
+export { SimpleMCPServer };

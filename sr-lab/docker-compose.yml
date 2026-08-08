@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: ./backend
+    container_name: sr-lab-backend
+    volumes:
+      - srlab-data:/app/data      # DuckDB persists across container rebuilds
+      # real-world experiment datasets: drop CSVs here on the host, restart backend
+      - ./backend/data/real:/app/data/real:ro
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: sr-lab-frontend
+    ports:
+      - "5173:80"                 # same URL as dev mode: http://localhost:5173
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  srlab-data:

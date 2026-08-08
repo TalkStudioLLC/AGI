@@ -1,0 +1,36 @@
+# F3IL Memory MCP Server — container image
+#
+# Build (from C:\Users\Tom\Documents\GitHub\AGI):
+#   docker compose --profile memory build
+#   (or: docker build -f Dockerfile.memory -t agi-memory-server .)
+#
+# Run: Claude Desktop launches this via `docker run -i` (see
+# MEMORY_SYSTEM_FIXED.md v3.1). The container holds the RUNTIME only —
+# memory.db and the embedding-model cache live on the host through the
+# /data bind mount, so the user keeps full ownership of their memory.
+
+FROM node:22-slim
+
+WORKDIR /app
+
+# Native build tools for the sqlite3 module in case no prebuilt binary
+# matches (prebuilds usually do; this is belt-and-suspenders).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev --no-audit --no-fund
+
+COPY mcp-server.js ./
+COPY src ./src
+
+# /data is the bind-mounted host folder (the AGI repo):
+#   /data/memory.db      — the same single SQLite file as host-node mode
+#   /data/.model-cache   — one-time embedding model download, reused forever
+ENV F3IL_DB_PATH=/data/memory.db
+ENV F3IL_CACHE_DIR=/data/.model-cache
+ENV NODE_ENV=production
+
+# MCP speaks JSON-RPC over stdio; docker run -i wires that through.
+CMD ["node", "mcp-server.js"]

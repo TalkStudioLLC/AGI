@@ -8,7 +8,7 @@
  * - Uncertainty propagation and confidence assessment
  */
 
-const _ = require('lodash');
+import _ from 'lodash';
 
 class ReasoningEngine {
     constructor() {
@@ -396,4 +396,4 @@ class ReasoningEngine {
     }
 }
 
-module.exports = { ReasoningEngine };
+export { ReasoningEngine };
