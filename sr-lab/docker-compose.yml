@@ -6,6 +6,12 @@ services:
       - srlab-data:/app/data      # DuckDB persists across container rebuilds
       # real-world experiment datasets: drop CSVs here on the host, restart backend
       - ./backend/data/real:/app/data/real:ro
+      # protected datasets (EXP-007+): gitignored AND dockerignored — reaches the
+      # container only through this read-only mount, never via image or git
+      - ./backend/data/private:/app/data/private:ro
+    # joblib memmaps training arrays into /dev/shm during parallel search;
+    # Docker's 64MB default starves the workers (SIGSEGV). Give it room.
+    shm_size: "1gb"
     expose:
       - "8000"
     restart: unless-stopped

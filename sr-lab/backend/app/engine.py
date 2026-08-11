@@ -34,6 +34,15 @@ DEFAULT_CONFIG = {
     # predictions inverted with exp() and ALWAYS scored in linear space so
     # results stay comparable across modes). Requires strictly positive data.
     "log_space": False,
+    # EXP-007: chronological hold-out for time-series data. A shuffled split
+    # leaks the future into training (train on Thursday, test on Wednesday);
+    # with time_split the exam is strictly the LAST test_size fraction of
+    # rows, in row order. Loaders must supply rows sorted by time.
+    "time_split": False,
+    # Parallel search workers (joblib): -1 = all cores. In containers with
+    # small /dev/shm this can segfault workers; the engine auto-retries the
+    # whole fit with n_jobs=1 if the parallel attempt dies.
+    "n_jobs": -1,
 }
 
 # gplearn program token -> sympy constructor
@@ -104,11 +113,17 @@ def _execute_run(run_id, dataset_id, config):
         df, feature_cols, target_col = load_dataset(dataset_id)
         X = df[feature_cols].to_numpy()
         y = df[target_col].to_numpy()
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y,
-            test_size=config["test_size"],
-            random_state=config["random_state"],
-        )
+        if config.get("time_split", False):
+            # strictly chronological: past → train, future → exam
+            cut = int(len(y) * (1 - config["test_size"]))
+            X_train, X_test = X[:cut], X[cut:]
+            y_train, y_test = y[:cut], y[cut:]
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y,
+                test_size=config["test_size"],
+                random_state=config["random_state"],
+            )
 
         log_space = bool(config.get("log_space", False))
         if log_space:
@@ -120,16 +135,30 @@ def _execute_run(run_id, dataset_id, config):
             Xf_train, Xf_test = X_train, X_test
             yf_train = y_train
 
-        est = SymbolicRegressor(
-            population_size=config["population_size"],
-            generations=config["generations"],
-            function_set=tuple(config["function_set"]),
-            parsimony_coefficient=config["parsimony_coefficient"],
-            const_range=(-10.0, 10.0),
-            random_state=config["random_state"],
-            n_jobs=-1,
-        )
-        est.fit(Xf_train, yf_train)
+        def _make_est(n_jobs):
+            return SymbolicRegressor(
+                population_size=config["population_size"],
+                generations=config["generations"],
+                function_set=tuple(config["function_set"]),
+                parsimony_coefficient=config["parsimony_coefficient"],
+                const_range=(-10.0, 10.0),
+                random_state=config["random_state"],
+                n_jobs=n_jobs,
+            )
+
+        n_jobs = int(config.get("n_jobs", -1))
+        est = _make_est(n_jobs)
+        try:
+            est.fit(Xf_train, yf_train)
+        except Exception:
+            # Parallel workers can die (SIGSEGV/OOM) in memory-constrained
+            # containers — joblib memmaps arrays into /dev/shm, which Docker
+            # caps at 64MB by default. Same search, single process: slower
+            # but immune to worker shared-memory limits.
+            if n_jobs == 1:
+                raise
+            est = _make_est(1)
+            est.fit(Xf_train, yf_train)
 
         # Collect the best final-generation programs, dedupe by expression string.
         programs = sorted(

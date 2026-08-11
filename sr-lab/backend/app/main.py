@@ -43,6 +43,7 @@ class RunRequest(BaseModel):
     test_size: float | None = None
     parsimony_coefficient: float | None = None
     log_space: bool | None = None
+    time_split: bool | None = None
 
 
 @app.get("/api/datasets")

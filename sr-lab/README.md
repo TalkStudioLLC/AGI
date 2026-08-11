@@ -1,6 +1,6 @@
 # Symbolic Regression Lab
 
-**Version:** v1.4
+**Version:** v1.8
 **Target repo/branch:** `C:\Users\Tom\Documents\GitHub\AGI` (main) — lives as `sr-lab/` alongside the v1 memory/reasoning MCP system
 **Lineage:** AGI project, iteration 2. Iteration 1 tackled *memory and continuity* (persistent memory MCP server, symbolic reasoning engine, meta-cognition layer). This iteration tackles *verifiable discovery* — using AI-style search to find mathematical laws in data, with results that don't depend on trusting the search: every equation is scored on a held-out test split it never saw.
 
@@ -145,8 +145,95 @@ Drop CSVs into `backend/data/real/` and restart the backend — datasets in
 Exoplanet Archive orbits (see `EXPERIMENTS.md` at the repo root). In Docker,
 that folder is bind-mounted read-only into the container.
 
+## Protected data (EXP-007: private telemetry, public code)
+
+Registry entries flagged `private: True` load from `backend/data/private/`
+instead — **gitignored in its entirety**, same guarantee as memory.db. The
+loaders are customer-agnostic (column aliases auto-detected, ms/s
+auto-converted, no hostnames or environment values anywhere in code), and
+logged results use generic labels ("Service A").
+
+### Exporting telemetry (Phase 1: Little's Law credential test)
+
+`export-telemetry.sh` (bash — Git Bash, WSL, or any Linux host; requires
+curl + jq) pulls three series from any Prometheus-compatible API and
+writes `backend/data/private/service_telemetry.csv`.
+
+**Configure once in `.env`, run bare.** Copy `sr-lab/.env.example` to
+`sr-lab/.env`, fill in your URL and queries (`.env` is gitignored at every
+level — your values never enter version control), then:
+
+```bash
+cd <repo>/sr-lab
+bash export-telemetry.sh
+```
+
+Flags override `.env` when needed:
+
+```bash
+bash export-telemetry.sh --prom-url http://YOUR-PROM:9090 \
+  --rate-query 'sum(rate(http_requests_total{job="YOURSERVICE"}[5m]))' \
+  --latency-query 'sum(rate(http_request_duration_seconds_sum{job="YOURSERVICE"}[5m]))/sum(rate(http_request_duration_seconds_count{job="YOURSERVICE"}[5m]))' \
+  --inflight-query 'sum(http_requests_in_flight{job="YOURSERVICE"})'
+```
+
+Optional: `--days 7`, `--step 60`, `--out FILE`; `--help` prints the full
+header. Verified end-to-end against a mock Prometheus (2,881 aligned
+samples; output satisfies L = rate·latency at R² 0.92 by construction).
+A PowerShell twin (`export-telemetry.ps1`, same `.env`, same behavior)
+exists for PowerShell-only environments.
+
+**Hosted Prometheus APIs (auth):** for endpoints that require a token
+(Fly.io managed Prometheus, Grafana Cloud, ...), set `PROM_TOKEN` in
+`.env` (sent as `Authorization: Bearer <token>`) or `PROM_AUTH_HEADER`
+(sent verbatim — covers Fly's `FlyV1 ...` macaroon tokens; wins over
+`PROM_TOKEN`). Flags `--token` / `--auth-header` override. Unset = no
+header, exactly as before. Tokens live only in the gitignored `.env`.
+
+**Fly.io note:** every Fly org gets a managed Prometheus at
+`https://api.fly.io/prometheus/<org-slug>` whose proxy already records
+the Little's Law triple for each app with **no app changes**:
+`fly_app_http_responses_count` (rate), `fly_app_http_response_time_seconds`
+histogram (latency), `fly_app_concurrency` (in-flight). A commented
+example lives in `.env.example`; a read-only token comes from
+`fly tokens create readonly`.
+
+Not sure of your metric names? List candidates first:
+
+```powershell
+(Invoke-RestMethod "http://YOUR-PROM:9090/api/v1/label/__name__/values").data -match "request|duration|latency|in_flight|connections" | Select-Object -First 40
+```
+
+Optional flags: `-Days 7` (range), `-StepSeconds 60` (resolution). Wrap
+every query in `sum(...)` so it returns one series. nginx-ingress and
+generic `http_*` examples are in the script's comment header
+(`Get-Help .\export-telemetry.ps1 -Examples`).
+
+**No Prometheus / low-tech path:** any Grafana panel → Inspect → Download
+CSV, saved as `backend/data/private/service_telemetry.csv` — the loader
+auto-detects common column names (rate/rps/qps, latency/duration/response
+time, inflight/active/concurrency, timestamp).
+
+Then restart the backend; dataset **"PRIVATE: Service Telemetry"** appears.
+Run it with `time_split` enabled — chronological hold-out is mandatory for
+time-series (a shuffled split leaks the future).
+
 ## Revision history
 
+- **v1.8** (2026-08-08) — exporter auth support: PROM_TOKEN (Bearer) /
+  PROM_AUTH_HEADER (verbatim, e.g. FlyV1) in .env or via --token /
+  --auth-header, both scripts; Fly.io managed-Prometheus example in
+  .env.example (fly_app_* proxy metrics = rate/latency/in-flight with
+  no app changes). Verified against an auth-enforcing mock Prometheus.
+- **v1.7** (2026-08-08) — bash exporter (export-telemetry.sh) is now the
+  primary path (curl+jq, same .env, flags override); verified end-to-end
+  against a mock Prometheus. PowerShell twin retained.
+- **v1.6** (2026-08-08) — export-telemetry.ps1 reads sr-lab/.env
+  (set-once config; parameters override; .env.example committed).
+- **v1.5** (2026-08-08) — protected-data section: data/private (gitignored),
+  customer-agnostic telemetry loader, export-telemetry.ps1 usage + metric
+  discovery one-liner + Grafana CSV fallback; time_split engine mode
+  documented for time-series.
 - **v1.4** (2026-08-08) — engine `log_space` option (EXP-002): fits in
   log-log space, inverts with exp(), always scores in linear space for
   cross-mode comparability; `log_space` accepted on POST /api/runs.

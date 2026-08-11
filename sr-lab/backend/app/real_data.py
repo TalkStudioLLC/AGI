@@ -20,6 +20,13 @@ from pathlib import Path
 
 REAL_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "real"
 
+# Private datasets: same loader machinery, but this directory is gitignored —
+# protected data (e.g. production telemetry) NEVER enters version control.
+# Registry entries with "private": True are looked up here. Code stays public;
+# data stays home. Results referencing private datasets must use generic
+# labels ("Service A"), never real hostnames or domains.
+PRIVATE_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "private"
+
 
 def _load_exoplanets(df: pd.DataFrame) -> pd.DataFrame:
     """NASA Exoplanet Archive (ps table): orbital period vs semi-major axis
@@ -67,6 +74,63 @@ def _load_mass_radius(df: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+
+
+
+
+def _load_service_telemetry(df: pd.DataFrame) -> pd.DataFrame:
+    """EXP-007 — service telemetry, CUSTOMER-AGNOSTIC by design: no hostnames,
+    no domains, no environment specifics. Auto-detects common column names
+    from a metrics export (Prometheus/Grafana CSV or similar).
+
+    Credential test: Little's Law, L = λ·W — things-in-system equals arrival
+    rate times time-in-system. As much a law as Kepler's. Canonical columns
+    after detection:
+        rate    — arrivals/sec (λ)
+        latency — seconds in system (W)   [ms auto-converted if detected]
+        inflight— concurrent in-system (L, the target)
+    Rows kept in time order for the engine's time_split mode.
+    """
+    aliases = {
+        "rate": ["rate", "rps", "requests_per_sec", "req_rate", "arrival_rate",
+                 "throughput", "qps"],
+        "latency": ["latency", "latency_s", "avg_latency", "response_time",
+                    "duration", "latency_ms", "avg_latency_ms", "response_time_ms"],
+        "inflight": ["inflight", "in_flight", "active_requests", "concurrency",
+                     "active", "in_system", "queue_depth_total"],
+        "ts": ["ts", "time", "timestamp", "date", "datetime"],
+    }
+    cols = {c.lower().strip(): c for c in df.columns}
+    found = {}
+    for canon, names in aliases.items():
+        for n in names:
+            if n in cols:
+                found[canon] = cols[n]
+                break
+    missing = [k for k in ("rate", "latency", "inflight") if k not in found]
+    if missing:
+        raise ValueError(
+            f"telemetry csv missing columns for: {missing}; "
+            f"recognized aliases: { {k: v for k, v in aliases.items() if k != 'ts'} }")
+    out = pd.DataFrame({
+        "rate": pd.to_numeric(df[found["rate"]], errors="coerce"),
+        "latency": pd.to_numeric(df[found["latency"]], errors="coerce"),
+        "inflight": pd.to_numeric(df[found["inflight"]], errors="coerce"),
+    })
+    if "ts" in found:
+        ts = pd.to_datetime(df[found["ts"]], errors="coerce")
+        out = out.assign(_ts=ts).sort_values("_ts").drop(columns="_ts")
+    # ms → s auto-detect (median latency > 10 ⇒ almost certainly milliseconds)
+    if out["latency"].median() > 10:
+        out["latency"] = out["latency"] / 1000.0
+    out = out.dropna()
+    out = out[(out["rate"] > 0) & (out["latency"] > 0) & (out["inflight"] >= 0)]
+    for col in out.columns:
+        lo, hi = out[col].quantile([0.005, 0.995])
+        out = out[(out[col] >= lo) & (out[col] <= hi)]
+    return out.reset_index(drop=True)
+
+
 # Registry of known real datasets. Each activates when its CSV exists.
 REGISTRY = [
     {
@@ -99,6 +163,22 @@ REGISTRY = [
         "true_law": None,   # genuinely open — that's the point of EXP-003
         "transform": _load_mass_radius,
     },
+    {
+        "filename": "service_telemetry.csv",
+        "dataset_id": "service_telemetry",
+        "name": "PRIVATE: Service Telemetry — Little's Law credential test",
+        "description": (
+            "Concurrency (L) vs. arrival rate and latency from a production "
+            "service's metrics export. Expected law: Little's Law, L = rate x "
+            "latency — queueing theory's Kepler. Data is private (gitignored); "
+            "this loader and all code are public and customer-agnostic."
+        ),
+        "target_col": "inflight",
+        "feature_cols": ["rate", "latency"],
+        "true_law": "L = rate * latency  (Little's Law — expected)",
+        "transform": _load_service_telemetry,
+        "private": True,
+    },
 ]
 
 
@@ -107,10 +187,12 @@ def build_all():
     missing or malformed file — reports and continues."""
     results = []
     for entry in REGISTRY:
-        path = REAL_DATA_DIR / entry["filename"]
+        base = PRIVATE_DATA_DIR if entry.get("private") else REAL_DATA_DIR
+        path = base / entry["filename"]
         if not path.exists():
+            where = "backend/data/private/" if entry.get("private") else "backend/data/real/"
             results.append((entry["dataset_id"], "awaiting_data",
-                            f"drop {entry['filename']} into backend/data/real/"))
+                            f"drop {entry['filename']} into {where}"))
             continue
         try:
             raw = pd.read_csv(path, comment="#")
@@ -118,9 +200,13 @@ def build_all():
             if len(df) < 30:
                 results.append((entry["dataset_id"], "too_few_rows", f"{len(df)} rows after cleaning"))
                 continue
+            # replace=True: these datasets mirror a file on disk — a changed
+            # CSV must win over whatever was imported before (EXP-007 lesson:
+            # without this, a re-export was silently ignored on restart).
             register_dataset(
                 entry["dataset_id"], entry["name"], entry["description"],
                 entry["target_col"], entry["feature_cols"], entry["true_law"], df,
+                replace=True,
             )
             results.append((entry["dataset_id"], "registered", f"{len(df)} rows"))
         except PermissionError:

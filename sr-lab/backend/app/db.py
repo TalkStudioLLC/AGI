@@ -87,15 +87,26 @@ def dataset_table(dataset_id: str) -> str:
 
 
 def register_dataset(dataset_id, name, description, target_col, feature_cols,
-                     true_law, df):
-    """Store a pandas DataFrame as a dataset table + metadata row (idempotent)."""
+                     true_law, df, replace=False):
+    """Store a pandas DataFrame as a dataset table + metadata row.
+
+    Idempotent by default (existing dataset untouched). With replace=True the
+    existing table and metadata row are dropped and re-created from df — used
+    by file-backed real/private datasets so that a changed CSV takes effect
+    on restart instead of the first-ever import winning forever (found in
+    EXP-007: a re-exported telemetry file was silently ignored). Run history
+    is preserved — runs reference the dataset id, not the table contents.
+    """
     with get_conn() as conn:
         exists = conn.execute(
             "SELECT COUNT(*) FROM datasets WHERE id = ?", [dataset_id]
         ).fetchone()[0]
-        if exists:
+        if exists and not replace:
             return
         table = dataset_table(dataset_id)
+        if exists:
+            conn.execute(f"DROP TABLE IF EXISTS {table}")
+            conn.execute("DELETE FROM datasets WHERE id = ?", [dataset_id])
         conn.register("df_tmp", df)
         conn.execute(f"CREATE TABLE {table} AS SELECT * FROM df_tmp")
         conn.unregister("df_tmp")

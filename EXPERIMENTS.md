@@ -1,6 +1,6 @@
 # AGI Project — Experiment Log
 
-**Version:** v1.8
+**Version:** v2.0
 **Target repo/branch:** `C:\Users\Tom\Documents\GitHub\AGI` (main)
 **Protocol:** every experiment states its hypothesis, its verification
 criterion (mechanical or empirical — never "looks right"), and its result.
@@ -423,8 +423,11 @@ too generous, and the investigate-before-celebrating rule caught it.
 
 ## EXP-006 — Governing beyond comprehension (the oversight experiment)
 
-**Status:** PRE-REGISTERED (2026-08-08) — instrument built; awaiting the
-judge's session
+**Status:** ADJUDICATED, BOTH SESSIONS (2026-08-10). Session 1
+(unaided): **P3** — 50%, 8 false-accepts, 0 rejects cast. Session 2
+(EXP-006b, checklist-aided, fresh cards): **P2** — 63%, false-accepts
+cut 8→2, over-rejection of modest results emerged, provenance flaws
+remain the blind spot. Full record below.
 **Track:** NEW — Track 4: human–AI collaboration under capacity gates
 **Question:** can a human, given ONLY verification artifacts — grades,
 bet-scoring, baselines, audit notes, with the content domain masked —
@@ -466,6 +469,100 @@ flaw-identification rate.
   transfers.
 - **P2 (~25%):** 60–80% — partial transfer; accept/reject works better
   than flaw-naming.
+
+**RESULT (2026-08-10, single cold session).** Scorecard verbatim: **50%
+(8/16), 8 false-accepts, 0 false-rejects, 3/8 flaws named** → **P3.**
+But the pattern inside the number matters more than the number:
+
+- The judge **accepted all sixteen cards** — not one REJECT was cast.
+  Every error was a false-accept, the dangerous direction: when unable
+  to decide, the judge defaulted to trust.
+- Yet flaw labels were attached to **exactly the eight flawed cards**
+  (three named precisely: the unaudited count, the circular pruning, the
+  baseline failure). Discrimination was present at the "something is
+  off" level; what was missing was a decision rule to convert suspicion
+  into rejection.
+- The judge's own words, recorded as data: *"I just don't even know how
+  to know one way or the other on this test."*
+
+**Interpretation:** verification does not transfer as raw artifacts — it
+transfers as *procedure*. Five experiments of protocol exposure produced
+working instincts but no operable acceptance criterion. This is a
+lived-scale replica of the central scalable-oversight problem: an
+overseer who cannot justify rejection will approve everything.
+Caveats for the record: the console's ACCEPT/REJECT semantics were not
+explicitly confirmed with the judge beforehand (possible mild UI
+contribution to the unanimous-accept pattern), and the C12 pre-exposure
+asterisk is moot (all cards were accepted regardless).
+
+**EXP-006b — the checklist (registered 2026-08-10, before any session):**
+same task, same flaw taxonomy, **fresh sealed card set** (the original
+sixteen are burned — the judge has seen their key). The judge is armed
+with the program's own seven-question mechanical checklist (bets locked
+before run? · test grade holds vs train? · beats the trivial baseline? ·
+both rulers shown? · data pruned only by pre-declared rule? · audit
+performed? · held-out exam exists at all?) — every question answerable
+yes/no from the card text, no math. Pre-registered predictions:
+
+- **P1 (~60%):** checklist-aided accuracy ≥ 80% with ≤ 2 false-accepts —
+  oversight transfers *when shipped with a protocol*.
+- **P2 (~25%):** 60–80% — the aid helps but reading the artifacts under
+  pressure remains the bottleneck.
+- **P3 (~15%):** no material improvement — the thesis fails on its human
+  half even with procedure; comprehension may be irreducible here.
+
+**RESULT (2026-08-10, single cold session, fresh sealed cards). P2
+lands.** Scorecard verbatim: **63% (10/16), 2 false-accepts, 4
+false-rejects, 1/6 flaws named.** Same judge, one variable changed (the
+checklist); Session 1 is the within-subject baseline:
+
+| | Session 1 (unaided) | Session 2 (checklist) |
+|---|---|---|
+| accuracy | 50% | 63% |
+| false-accepts (dangerous) | **8** | **2** |
+| false-rejects | 0 | 4 |
+| flawed results correctly rejected | 0/8 | 6/8 |
+| flaws named | 3/8 | 1/6 |
+
+**What the checklist bought:** rejection capacity. The judge went from
+zero rejections to correctly shooting down 6/8 flawed results —
+memorization, leakage, circular pruning, baseline failure, missing
+hold-out, cherry-picked ruler all caught. The dangerous error fell 4×.
+
+**What it cost:** calibration. All four false-rejects were the
+*unglamorous* sound results — the honest failure, the small sample, the
+modest grade, the exact-integer result. Skepticism arrived and overshot
+onto modesty; the judge now trusts confident-looking soundness and
+doubts humble-looking soundness.
+
+**The residual gap:** both surviving false-accepts (F5 edited-after-run
+predictions; F8 unaudited count) are cards where every *number* is clean
+and the flaw lives in the process record. Checklist questions 1 and 6
+pointed at them directly; provenance flaws evidently don't feel like
+flaws when the math looks fine. And flaw-naming *declined* while verdict
+accuracy improved — recognition and diagnosis are separable skills,
+almost verbatim the P2 prediction.
+
+**Judge's process notes (recorded after both sessions, his words):** on
+first contact with Session 1 — *"seeing it the first time — what is
+this, does any of this make sense, {look for patterns}"* — and on
+Session 2's checklist format — *"is this structured as a quiz (perfect)
+(legit)."* Reading: part of Session 1's 50% was **orientation cost** —
+the judge was reverse-engineering the instrument while operating it,
+and with no criterion available, defaulted to pattern-seeking (which
+found the flawed cards) and trust (which accepted them anyway). Session
+2's structure was recognized as legitimate on sight, and verdicts had
+somewhere to stand. Design lesson for any oversight interface: the
+overseer should never have to discover what the task is mid-task.
+
+**Standing conclusion for Track 4:** verification-based oversight
+transfers as *procedure plus practice*, not as artifacts alone —
+unaided 50% (pure trust) → checklist-aided 63% with the dangerous error
+largely closed. The remaining frontier is calibrated skepticism (don't
+punish modesty) and provenance-sensitivity (audit the process record,
+not just the numbers). One session per condition, n=1 judge —
+pre-registered, honestly scored, and exactly the shape scalable-oversight
+theory predicts.
 - **P3 (~10%):** ≤ 60% — artifacts alone are insufficient without
   explicit training; motivates a "verification literacy" checklist.
 - **P4 (~10%):** instrument problem (cards ambiguous/leaky) — the console
@@ -480,12 +577,209 @@ test — the console doubles as its interactive centerpiece.
 
 **Result:** _pending the judge's session_
 
+---
+
+## EXP-007 — Laws of the house (private telemetry, public code)
+
+**Status:** PHASES 1–1c ADJUDICATED (2026-08-09/10) — Phase 1: **P3 (15%)
+— monitoring auditor.** Phase 1b/1c: registered bet **missed** (test R²
+0.35 < 0.8), but the λ·W core surfaced in 5/5 top equations and the miss
+itself decomposed into three named measurement phenomena. Full record
+below.
+**Track:** 2 (empirical) — first PROTECTED-DATA experiment
+**Ground rule:** the project's communications and data are protected; the
+code is public. Enforced architecturally: telemetry lives in
+`sr-lab/backend/data/private/` (gitignored, like memory.db), the loader is
+customer-agnostic (auto-detects column aliases, no hostnames or domains
+anywhere), and all logged results use generic labels ("Service A").
+
+**Phase 1 — credential test on owned infrastructure:** Little's Law,
+L = λ·W — concurrency equals arrival rate times time-in-system. Queueing
+theory's Kepler. Chronological split (time_split=true; a shuffled split
+would leak the future).
+
+**Calibration record (2026-08-08, sandbox):** on synthetic telemetry with
+4% noise and load waves, the instrument returned `L = latency*rate`
+exactly (complexity 3, TEST R² 0.9953 chronological). Instrument
+credentialed for telemetry. Also banked from the retired market detour:
+the instrument correctly REFUSES a true random walk (test R² 0.0000) —
+it can decline, which makes its findings meaningful.
+
+**Pre-registered predictions for the real export (locked before data):**
+
+- **P1 (~55%):** Little's Law recovered at test R² ≥ 0.90. Metrics
+  pipeline is coherent; instrument cleared for Phase 2 open questions.
+- **P2 (~25%):** partial (0.5–0.9) — real exports mix sampling windows
+  and averaging methods; the gap measures *observability quality*, not
+  physics. A finding about the metrics, valuable in itself.
+- **P3 (~15%):** fails (< 0.5) — the exported metrics don't measure what
+  their names claim. The instrument as monitoring auditor.
+- **P4 (~5%):** pipeline/format trouble.
+
+**RESULT — Phase 1 (2026-08-09).** Export: 2,162 aligned samples (7 days,
+60s step) from the hosting platform's managed Prometheus — proxy-level
+rate, mean latency, and concurrency for one production service
+("Service A"). Chronological split, population 2000 × 25 generations.
+
+The search's best answer: **a constant** — `inflight ≈ 0.999`, complexity
+2, train R² −0.18, TEST R² −0.15. It examined rate and latency and
+declined to relate them to the target at all.
+
+**Adjudication: P3 (pre-registered at 15%) — "the exported metrics don't
+measure what their names claim; the instrument as monitoring auditor."**
+Diagnosed cause, visible in the raw rows: Service A idles at λ ≈ 0.1
+req/s with W ≈ 55 ms, so true mean occupancy is L = λ·W ≈ **0.006**
+requests. But the platform's concurrency gauge is integer-quantized with
+a floor of 1, and it reported in only ~21% of the week's minutes —
+overwhelmingly minutes when something was in flight. The target column is
+therefore ~constant 1 regardless of what rate and latency do. The law is
+not refuted; it lives two orders of magnitude below the instrument's
+resolution floor. Testing Kepler with a sundial.
+
+**The property that mattered held on real data:** the engine returned an
+honest constant instead of a decorated fake law — the null-refusal
+behavior banked in calibration, now demonstrated on protected production
+telemetry. Contrast, same engine, same week: exoplanet orbits at test R²
+0.99. It can find laws, and it can say "there is nothing here." The
+second capability is what makes the first one credible.
+
+Operational side-finding for Service A: healthy latency, massively
+over-provisioned at current traffic. Pipeline footnote: the first export
+was silently shattered by Windows CRLF line endings (a P4-flavor event) —
+caught by the protocol's baseline-check step *before* adjudication, and
+fixed publicly (exporter now strips CR and refuses success on a malformed
+file).
+
+**Phase 1b — the traffic dial (registered 2026-08-09, before running):**
+the law was invisible at idle, so make the regime visible: drive
+controlled load at Service A in steps (e.g. ~1 → 5 → 20 → 50 req/s,
+several minutes per step), export just that window at fine step, rerun.
+Pre-registration: as λ·W crosses the gauge's floor, Little's Law should
+**emerge from under the quantization** — prediction: test R² ≥ 0.8 on the
+loaded window with a law within reach of `rate × latency` (complexity
+≤ 5). If instead the constant persists even under load, the concurrency
+metric itself is indicted (a monitoring-audit finding worth publishing on
+its own). Alternative/parallel path: repeat Phase 1 against the org's
+busiest service instead of its quietest.
+
+**RESULT — Phases 1b/1c, the traffic dial (2026-08-09/10).** Getting an
+honest in-flight number took deposing three platform-proxy signals in
+turn: the proxy "concurrency" gauge froze at static allocation values
+(36, then 70 — worker-pool bookkeeping, not occupancy), its
+connect/disconnect counters netted to zero under load, and its emission
+was change-deduplicated (constant value ⇒ almost no samples — why the
+7-day export aligned only 21% of minutes). Verdict of the audit:
+**infrastructure-level monitoring measures its own bookkeeping; only the
+application knows its occupancy.** Fix: ~60 lines of app middleware (a
+real in-flight gauge, request counter, latency histogram on a private
+metrics port) — permanent observability upgrade to Service A, deployed
+mid-experiment.
+
+Runs then adjudicated in sequence, each an honest answer:
+
+- **Fast-endpoint sweeps (runs 8–10):** at the service's true ~4 ms
+  handler latency, occupancy never exceeds ~0.5 even at 120 req/s — the
+  engine returned `inflight = 0` (literally true to the instrument;
+  side-finding: ~97% of user-perceived latency on Service A is TLS +
+  network, not application code). Also caught: instantaneous 15 s
+  snapshots of a bursty queue during CPU saturation showed spikes to
+  ~126 in flight against a nominal λ·W ≈ 12 — Little's Law does not
+  hold pointwise, only in time-average, so snapshots are the wrong food
+  for the search.
+- **Averaged run (run 11, the adjudication):** 100 ms tunable-work
+  endpoint, stepped load 2→10→40→120 req/s, all three series as 2-minute
+  time-averages over the exact sweep window (173 aligned samples,
+  chronological split). **Every one of the top 5 equations has
+  `latency*rate` as its core factor** — the engine found the law's
+  structure — but decorated (complexity ~48, train 0.72 → test 0.35).
+  Bare `rate × latency` (complexity 3): train 0.19, **test −0.07**.
+  Registered bet (R² ≥ 0.8, complexity ≤ 5): **MISS**.
+
+Why the miss — three named phenomena, each worth keeping:
+
+1. **Regime shift across the chronological split** (the EXP-002/P3
+   lesson, again): train = 2–40 req/s orderly queueing; test = 120 req/s
+   with the shared CPU saturating on TLS handshakes. The decorations were
+   fitted to regimes that did not survive the jump.
+2. **Snapshot bias under burstiness:** test-window mean inflight 7.86 vs
+   mean rate×latency 11.97. The counter side (rate × latency =
+   Σdurations/T) is the *exact integral* of occupancy; the gauge side is
+   sparse snapshots that systematically miss short-lived bursts. The gap
+   between the two is not error in the law — it is a *measurement of
+   burstiness*. Little's Law is an identity between aggregates; two
+   honest instruments can still disagree about turbulence they sample
+   differently.
+3. **The explainability tax, in production:** +0.35 test for the
+   48-token decorated form vs −0.07 for the 3-token law — on this data
+   the tax ran negative-side-up, but only because the simple law was
+   graded against a biased target (phenomenon 2).
+
+Standing result: across Phases 1–1c the engine returned two honest
+constants, one honest zero, and one structurally-correct-but-decorated
+λ·W — and never once a confident fake. The null-refusal property held
+through every instrument failure. A clean-arena rerun (no saturation:
+gentler top rate + longer hold; regimes repeated so the chronological
+test window contains a full ramp, e.g. steps 5→20→60→5→20→60) is the
+natural Phase 1d if the bet is to be given one fair final shot.
+
+**Phase 2 (scoped after the Phase 1 line closes):** the open questions
+only this data can answer — what actually governs tail latency vs. load;
+where the utilization hockey-stick begins per service; whether any
+service's behavior has regime changes like the planet families did.
+
+**To run:** export one busy service's metrics as CSV — columns for
+timestamp, request rate, average latency, and active/concurrent requests
+(common Prometheus/Grafana names auto-detected; ms auto-converted) — and
+drop it at `sr-lab\\backend\\data\\private\\service_telemetry.csv`. Restart
+the backend; run with time_split=true.
+
 ## Queue
 
-- (next: scoped from EXP-006's outcome — a verification-literacy
-  checklist if P2/P3; a multi-judge reader study if P1)
+- EXP-006c (optional): calibration training — can the over-rejection of
+  modest results and the provenance blind spot be closed in a third session?
+- EXP-007 Phase 1d: clean-arena rerun (optional; repeated ramps, no saturation)
+- EXP-007 Phase 2: tail latency / hockey-stick / per-service regimes
+- Multi-judge reader study of EXP-006 if P1 holds
 
 ## Revision history
+
+- **v2.4** (2026-08-10) — EXP-006b ADJUDICATED: P2 — 63% (10/16), FA
+  8→2 (the checklist bought rejection capacity), FR 0→4 (skepticism
+  overshot onto modest-but-sound results), naming declined while
+  verdicts improved (recognition ≠ diagnosis); residual false-accepts
+  are both provenance flaws (F5, F8) whose numbers are clean. Track 4
+  conclusion: oversight transfers as procedure + practice, not artifacts
+  alone. Console v2 (checklist-gated verdicts, reject-reveals-flaw,
+  machine-verified by scripted perfect play) shipped as
+  publication/judge-console-2.html.
+
+- **v2.3** (2026-08-10) — EXP-006 ADJUDICATED: P3 (~10%) — 50%, 8
+  false-accepts, 0 rejects cast, 3/8 flaws named; unanimous-accept +
+  flaw labels on exactly the flawed eight ⇒ instinct present, decision
+  rule absent; judge's statement recorded as data. EXP-006b registered:
+  checklist-aided session on a fresh sealed card set, bets locked.
+
+- **v2.2** (2026-08-10) — EXP-007 Phases 1b/1c ADJUDICATED: bet missed
+  (test 0.35 vs ≥0.8) but λ·W core in 5/5 top equations; three-signal
+  proxy-metrics audit concluded (bookkeeping, not occupancy) → app
+  middleware deployed to Service A (permanent upgrade); named findings:
+  law-of-averages vs snapshots, snapshot bias as burstiness measure,
+  regime shift across chronological split; null-refusal held throughout.
+  Phase 1d (clean arena, repeated ramps) sketched.
+
+- **v2.1** (2026-08-09) — EXP-007 Phase 1 ADJUDICATED: P3 (15%) — the
+  concurrency gauge is integer-quantized and reports-when-nonzero, so at
+  idle traffic (true L ≈ 0.006) the target is ~constant and the engine
+  correctly returned a constant (test R² −0.15) instead of a fake law:
+  null-refusal demonstrated on real protected telemetry. Phase 1b (the
+  traffic dial) registered. CRLF export bug found by the baseline-check
+  protocol and fixed publicly.
+
+- **v2.0** (2026-08-08) — EXP-007 pre-registered: first protected-data
+  experiment (private telemetry, public customer-agnostic code; data/private
+  gitignored). Little's Law calibration passed exactly (L = latency*rate,
+  test R² 0.9953, chronological split). time_split engine mode shipped;
+  market detour retired with its lessons banked (null-refusal validated).
 
 - **v1.8** (2026-08-08) — EXP-005 COMPLETE: P2 confirmed (5.8% of the
   OEIS exactly recurrent); S1 confirmed after 5× audit haircut (5,556

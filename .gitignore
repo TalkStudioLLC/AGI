@@ -65,3 +65,6 @@ oeis-miner/census.json
 sr-lab/frontend/dist/
 sr-lab/frontend/node_modules/
 sr-lab/backend/data/*.duckdb
+
+# Protected project data — code is public, data never is
+sr-lab/backend/data/private/
