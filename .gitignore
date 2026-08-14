@@ -49,6 +49,8 @@ unused/
 .gcloudignore
 # Memory data — NEVER publish (user-owned memories)
 memory.db
+memory.db.backup-*
+*.db.backup*
 simple-memory.json
 .model-cache/
 

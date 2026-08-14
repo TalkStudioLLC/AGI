@@ -743,6 +743,18 @@ the backend; run with time_split=true.
 
 ## Revision history
 
+- **v2.5** (2026-08-11) — TRUTH-PROTOCOL.md v1.0 shipped: the program's
+  method distilled into a standalone, domain-free document. Blind
+  transfer test passed before publication: a context-free session given
+  only the document judged 3 novel claims 3/3 — accepting the sound one,
+  rejecting a below-baseline result disguised as modesty, and catching a
+  post-hoc prediction edit (the provenance class that defeated the human
+  judge in both EXP-006 sessions). Also: dependency security pass
+  (58 Dependabot alerts → 0 across root + sr-lab/frontend; vestigial MCP
+  SDK removed; F3IL protocol-smoke-tested on the patched tree) and
+  healthcheck.sh added (one-command estate check incl. a real MCP
+  initialize against the F3IL image).
+
 - **v2.4** (2026-08-10) — EXP-006b ADJUDICATED: P2 — 63% (10/16), FA
   8→2 (the checklist bought rejection capacity), FR 0→4 (skepticism
   overshot onto modest-but-sound results), naming declined while
