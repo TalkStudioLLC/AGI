@@ -10,12 +10,14 @@ Endpoints:
 """
 
 import json
+import re
+import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import real_data, sample_data
+from . import metrics, real_data, sample_data
 from .db import dataset_table, get_conn, init_db
 from .engine import DEFAULT_CONFIG, start_run
 
@@ -28,12 +30,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Collapse ids in paths so the metric label stays low-cardinality:
+# /api/runs/42/equations -> /api/runs/{id}/equations
+_ID_SEG = re.compile(r"/\d+")
+
+
+@app.middleware("http")
+async def _metrics_middleware(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    # Instrumentation must never affect the response — swallow everything.
+    try:
+        path = _ID_SEG.sub("/{id}", request.url.path)
+        metrics.http_observed(
+            request.method, path, response.status_code, time.monotonic() - start
+        )
+    except Exception:
+        pass
+    return response
+
 
 @app.on_event("startup")
 def startup():
     init_db()
     sample_data.build_all()
     real_data.build_all()
+    metrics.init()
 
 
 class RunRequest(BaseModel):

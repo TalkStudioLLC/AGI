@@ -11,6 +11,7 @@ Runs execute on a background thread; the API polls run status.
 
 import json
 import threading
+import time
 import traceback
 from datetime import datetime
 
@@ -20,7 +21,64 @@ from gplearn.genetic import SymbolicRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
+from . import memory_client, metrics
 from .db import dataset_table, get_conn
+
+# Organic memory write-back policy. A run only feeds F3!L's memory when it
+# produces a law that (a) clears a real held-out bar — verification, not
+# training fit — and (b) beats the prior best for that dataset. Everything
+# else stays silent, so memory accrues genuine advances, not a firehose.
+VERIFIED_R2_BAR = 0.95
+IMPROVE_EPS = 1e-4
+MEMORY_CONTEXT = "sr-lab"   # kept out of F3!L's identity/agi-project recall
+
+
+def _maybe_remember_law(run_id, dataset_id, rows):
+    """If this run's best equation is a new verified best, remember it.
+
+    Defensive: wrapped so a memory hiccup can never fail a completed run. The
+    supersede check uses the lab's own DuckDB history (not memory recall), so
+    memory only ever sees genuine improvements.
+    """
+    try:
+        if not rows:
+            return
+        best = max(rows, key=lambda r: r["test_r2"])
+        if best["test_r2"] < VERIFIED_R2_BAR:
+            return
+        with get_conn() as conn:
+            prev = conn.execute(
+                "SELECT MAX(e.test_r2) FROM equations e JOIN runs r ON e.run_id = r.id "
+                "WHERE r.dataset_id = ? AND e.run_id != ?",
+                [dataset_id, run_id],
+            ).fetchone()[0]
+            meta = conn.execute(
+                "SELECT name, true_law FROM datasets WHERE id = ?", [dataset_id]
+            ).fetchone()
+        if prev is not None and best["test_r2"] <= prev + IMPROVE_EPS:
+            return  # not an improvement — stay silent
+
+        name = meta[0] if meta and meta[0] else dataset_id
+        true_law = meta[1] if meta else None
+        note = ("First verified law for this dataset."
+                if prev is None else f"Improves prior best R²={prev:.4f}.")
+        content = (
+            f"Discovered law for {name}: {best['simplified']} "
+            f"(held-out R²={best['test_r2']:.4f}, complexity {best['complexity']}). {note}"
+        )
+        if true_law:
+            content += f" Known law: {true_law}."
+
+        memory_client.remember(
+            content=content,
+            context=MEMORY_CONTEXT,
+            type="semantic",
+            emotional_weight=round(min(1.0, best["test_r2"]), 3),
+            tags=f"sr-lab,law,{dataset_id}",
+        )
+        metrics.memory_written(dataset_id)
+    except Exception:
+        pass
 
 DEFAULT_CONFIG = {
     "population_size": 2000,
@@ -108,7 +166,34 @@ def load_dataset(dataset_id):
     return df, feature_cols, target_col
 
 
+def _recall_prior_laws(dataset_id):
+    """Read-before-search: consult memory for laws already found on this
+    dataset, so the lab builds on what it knows. Also the read half of the
+    organic loop — every run leaves a recall in F3!L's activity trace.
+    Fail-safe: never raises, never blocks the fit meaningfully."""
+    try:
+        hits = memory_client.recall(
+            f"{dataset_id} discovered law", context=MEMORY_CONTEXT, limit=5
+        )
+        # Semantic recall can surface OTHER datasets' laws that share the
+        # "Discovered law for …" phrasing. Keep only laws actually about this
+        # dataset (its id is stamped into the memory's tags: "sr-lab,law,<id>").
+        mine = [h for h in hits
+                if dataset_id in (h.get("tags") or "")
+                or dataset_id in (h.get("content") or "")]
+        if mine:
+            print(f"[memory] recalled {len(mine)} prior law(s) for {dataset_id}; "
+                  f"best-known: {str(mine[0].get('content', ''))[:90]}")
+        else:
+            print(f"[memory] no prior laws for {dataset_id} "
+                  f"({len(hits)} unrelated hit(s) ignored)")
+    except Exception:
+        pass
+
+
 def _execute_run(run_id, dataset_id, config):
+    started = time.monotonic()
+    _recall_prior_laws(dataset_id)
     try:
         df, feature_cols, target_col = load_dataset(dataset_id)
         X = df[feature_cols].to_numpy()
@@ -220,6 +305,9 @@ def _execute_run(run_id, dataset_id, config):
                 "UPDATE runs SET status = 'finished', finished_at = ? WHERE id = ?",
                 [datetime.now(), run_id],
             )
+        best_r2 = max((r["test_r2"] for r in rows), default=None)
+        metrics.run_finished(dataset_id, time.monotonic() - started, best_r2, len(rows))
+        _maybe_remember_law(run_id, dataset_id, rows)
     except Exception:
         err = traceback.format_exc()
         with get_conn() as conn:
@@ -227,6 +315,7 @@ def _execute_run(run_id, dataset_id, config):
                 "UPDATE runs SET status = 'failed', error = ?, finished_at = ? WHERE id = ?",
                 [err[-2000:], datetime.now(), run_id],
             )
+        metrics.run_failed(dataset_id, time.monotonic() - started)
 
 
 def start_run(dataset_id, user_config=None):
@@ -237,6 +326,7 @@ def start_run(dataset_id, user_config=None):
             "INSERT INTO runs (id, dataset_id, status, config) VALUES (?, ?, 'running', ?)",
             [run_id, dataset_id, json.dumps(config)],
         )
+    metrics.run_started(dataset_id)
     thread = threading.Thread(
         target=_execute_run, args=(run_id, dataset_id, config), daemon=True
     )

@@ -20,9 +20,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev --no-audit --no-fund
+# The sqlite3 prebuilt binary targets a newer glibc (2.38) than this base
+# (bookworm, 2.36), so it fails to dlopen at runtime. Recompile just sqlite3
+# from source against the container's glibc — scoped so the onnxruntime
+# prebuilt (used for embeddings) keeps its working binary.
+RUN npm install --omit=dev --no-audit --no-fund \
+    && npm rebuild sqlite3 --build-from-source
 
 COPY mcp-server.js ./
+COPY memory-http.js ./
 COPY src ./src
 
 # /data is the bind-mounted host folder (the AGI repo):
