@@ -39,9 +39,16 @@ class IntegrationLayer {
             reflections.push(currentReflection);
         }
 
-        // Store the reflection as a memory
+        // Store the reflection as a memory.
+        // The reflection is an OBJECT. Interpolating it directly yielded
+        // "[object Object]" and silently destroyed every reflection F3!L ever
+        // had (see the 2025-05-25 and 2026-08-15 rows). Serialize it instead.
+        // Prose summary leads so embedding-based recall has real language to
+        // match on; the full structure follows so nothing is lost.
+        const finalReflection = reflections[reflections.length - 1];
+        const summary = finalReflection?.summary ?? '';
         await this.memory.store({
-            content: `Reflection on ${topic}: ${reflections[reflections.length - 1]}`,
+            content: `Reflection on ${topic}: ${summary}\n\n${JSON.stringify(finalReflection)}`,
             context: 'meta_cognition',
             type: 'semantic',
             emotional_weight: 0.3,

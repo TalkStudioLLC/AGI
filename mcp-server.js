@@ -16,6 +16,11 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Side channel for carrying a result COUNT from a handler to the tracer without
+// putting it on the MCP wire. JSON.stringify ignores symbol keys, so the client
+// never sees it and the response shape is unchanged.
+const TRACE_OUT = Symbol('traceOut');
+
 class SimpleMCPServer {
     constructor() {
         // DB path resolution:
@@ -236,7 +241,9 @@ class SimpleMCPServer {
                     throw new Error(`Unknown tool: ${name}`);
             }
 
-            this.tracer.record(name, args, { ok: true, ms: Date.now() - started });
+            this.tracer.record(name, args, {
+                ok: true, ms: Date.now() - started, out: result?.[TRACE_OUT]
+            });
             this.sendResponse(id, result);
         } catch (error) {
             this.tracer.record(name, args, { ok: false, ms: Date.now() - started, err: error.message });
@@ -372,6 +379,7 @@ class SimpleMCPServer {
             
             if (memories.length === 0) {
                 return {
+                    [TRACE_OUT]: 0,
                     content: [{
                         type: 'text',
                         text: `🔍 No memories found for "${args.query}"`
@@ -385,6 +393,7 @@ class SimpleMCPServer {
             }).join('\n');
             
             return {
+                [TRACE_OUT]: memories.length,
                 content: [{
                     type: 'text',
                     text: `🧠 Found ${memories.length} relevant memories:\n\n${memoryText}`

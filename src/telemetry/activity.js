@@ -53,7 +53,7 @@ export class ActivityTracer {
     }
 
     /** Record one tool call. Fire-and-forget; never throws. */
-    record(tool, args, { ok, ms, err } = {}) {
+    record(tool, args, { ok, ms, err, out } = {}) {
         try {
             const now = new Date();
             const event = {
@@ -64,6 +64,11 @@ export class ActivityTracer {
                 ms: ms == null ? undefined : Math.round(ms),
                 ...summarize(tool, args),
             };
+            // Result count. Without this a recall that found nothing is
+            // indistinguishable from one that found the right memory, so the
+            // trace cannot tell retrieval from confabulation. Matches the
+            // `out` field the memory-http bridge already emits.
+            if (out != null) event.out = out;
             if (err) event.err = head(err, 200);
             appendFile(this.logPath, JSON.stringify(event) + '\n', () => {});
         } catch { /* observability must never break the server */ }
