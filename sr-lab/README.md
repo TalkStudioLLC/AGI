@@ -137,6 +137,29 @@ upload endpoint is the natural next feature.
 - v2: live public datasets (NASA Exoplanet Archive, CERN Open Data) — the
   "anomaly-first sweep" experiment from the proposal doc
 
+## Dashboard baseline (observability/)
+
+The Grafana dashboard `sr-lab-agi` (http://localhost:3000/d/sr-lab-agi) plots
+run counts, durations, held-out R² per dataset, HTTP traffic, and F3!L memory
+activity. `observability/BASELINE.md` records what each panel *should* read,
+`observability/baseline.json` says the same thing machine-readably, and:
+
+```bash
+python sr-lab/observability/check_baseline.py
+```
+
+evaluates every panel's query against a live Prometheus and reports
+pass/warn/fail. It knows the difference between idle and active, so an idle
+dashboard (flat zeros, "No data" on both histogram panels) does not read as
+broken. `--capture FILE` saves a snapshot under `observability/snapshots/` for
+before/after comparison.
+
+`observability/FINDINGS.md` is the closeout report from establishing that
+baseline: seven defects, two fixed in the dashboard, five still open — including
+a segfault that takes the backend down when two runs execute concurrently, and
+counters that silently reset to zero on every backend restart. Read it before
+trusting any cumulative number on the dashboard.
+
 ## Real-world data (experiments)
 
 Drop CSVs into `backend/data/real/` and restart the backend — datasets in

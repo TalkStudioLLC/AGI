@@ -1,0 +1,252 @@
+{
+  "captured_at": "2026-08-15T00:56:08Z",
+  "prometheus": "http://localhost:9090",
+  "regime": "active",
+  "baseline_version": "1.0",
+  "results": [
+    {
+      "id": "scrape-targets-up",
+      "panel": "(dashboard-wide precondition)",
+      "expr": "up{job=~\"sr_lab_.*\"}",
+      "status": "PASS",
+      "reason": "1, 1",
+      "samples": [
+        {
+          "labels": {
+            "instance": "host.docker.internal:9091",
+            "job": "sr_lab_pushgateway"
+          },
+          "value": 1.0
+        },
+        {
+          "labels": {
+            "instance": "host.docker.internal:4300",
+            "job": "sr_lab_memory_api"
+          },
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "id": "active-runs",
+      "panel": "Active runs",
+      "expr": "sum(sr_active_runs)",
+      "status": "SKIP",
+      "reason": "only checked when idle",
+      "samples": []
+    },
+    {
+      "id": "active-runs-active",
+      "panel": "Active runs",
+      "expr": "sum(sr_active_runs)",
+      "status": "PASS",
+      "reason": "1",
+      "samples": [
+        {
+          "labels": {},
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "id": "runs-conserved",
+      "panel": "Runs started / finished / failed (cross-panel invariant)",
+      "expr": "sum(sr_runs_started_total) - sum(sr_runs_finished_total) - sum(sr_active_runs)",
+      "status": "SKIP",
+      "reason": "only checked when idle",
+      "samples": []
+    },
+    {
+      "id": "runs-failed",
+      "panel": "Runs failed",
+      "expr": "sum(sr_runs_finished_total{status=\"failed\"}) or vector(0)",
+      "status": "PASS",
+      "reason": "0",
+      "samples": [
+        {
+          "labels": {},
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "id": "equations-per-run",
+      "panel": "Equations discovered",
+      "expr": "sum(sr_equations_discovered_total) / sum(sr_runs_finished_total{status=\"finished\"})",
+      "status": "PASS",
+      "reason": "10",
+      "samples": [
+        {
+          "labels": {},
+          "value": 10.0
+        }
+      ]
+    },
+    {
+      "id": "instances-reporting",
+      "panel": "Instances reporting",
+      "expr": "count(count by (instance) (sr_build_info))",
+      "status": "WARN",
+      "reason": "2 != expected 1",
+      "samples": [
+        {
+          "labels": {},
+          "value": 2.0
+        }
+      ]
+    },
+    {
+      "id": "best-r2",
+      "panel": "Best held-out R\u00b2 (last run per dataset)",
+      "expr": "sr_last_best_test_r2",
+      "status": "PASS",
+      "reason": "0.9555",
+      "samples": [
+        {
+          "labels": {
+            "dataset": "ideal_gas",
+            "instance": "b02134b367cf",
+            "job": "sr_lab_backend"
+          },
+          "value": 0.9555109131580403
+        }
+      ]
+    },
+    {
+      "id": "best-r2-no-dupes",
+      "panel": "Best held-out R\u00b2 (last run per dataset)",
+      "expr": "count by (dataset) (sr_last_best_test_r2)",
+      "status": "PASS",
+      "reason": "1",
+      "samples": [
+        {
+          "labels": {
+            "dataset": "ideal_gas"
+          },
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "id": "run-duration-p50",
+      "panel": "Run duration (seconds)",
+      "expr": "histogram_quantile(0.50, sum by (le) (rate(sr_run_duration_seconds_bucket[10m])))",
+      "status": "WARN",
+      "reason": "45 above max 30",
+      "samples": [
+        {
+          "labels": {},
+          "value": 45.0
+        }
+      ]
+    },
+    {
+      "id": "run-duration-p95",
+      "panel": "Run duration (seconds)",
+      "expr": "histogram_quantile(0.95, sum by (le) (rate(sr_run_duration_seconds_bucket[10m])))",
+      "status": "PASS",
+      "reason": "58.5",
+      "samples": [
+        {
+          "labels": {},
+          "value": 58.5
+        }
+      ]
+    },
+    {
+      "id": "http-p95",
+      "panel": "HTTP p95 latency by path",
+      "expr": "histogram_quantile(0.95, sum by (le) (rate(sr_http_request_seconds_bucket[5m])))",
+      "status": "PASS",
+      "reason": "0.07117",
+      "samples": [
+        {
+          "labels": {},
+          "value": 0.071171875
+        }
+      ]
+    },
+    {
+      "id": "http-rate-idle",
+      "panel": "HTTP request rate by path",
+      "expr": "sum(rate(sr_http_requests_total[5m]))",
+      "status": "SKIP",
+      "reason": "only checked when idle",
+      "samples": []
+    },
+    {
+      "id": "memories-written",
+      "panel": "Verified laws remembered",
+      "expr": "sum(sr_memories_written_total) or vector(0)",
+      "status": "PASS",
+      "reason": "0",
+      "samples": [
+        {
+          "labels": {},
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "id": "memories-le-runs",
+      "panel": "Verified laws remembered (cross-panel invariant)",
+      "expr": "(sum(sr_memories_written_total) or vector(0)) - sum(sr_runs_finished_total{status=\"finished\"})",
+      "status": "PASS",
+      "reason": "-4",
+      "samples": [
+        {
+          "labels": {},
+          "value": -4.0
+        }
+      ]
+    },
+    {
+      "id": "f3il-memories",
+      "panel": "Memories in store",
+      "expr": "f3il_memories_total",
+      "status": "PASS",
+      "reason": "13",
+      "samples": [
+        {
+          "labels": {
+            "instance": "host.docker.internal:4300",
+            "job": "sr_lab_memory_api"
+          },
+          "value": 13.0
+        }
+      ]
+    },
+    {
+      "id": "f3il-tool-errors",
+      "panel": "(F3!L row, not currently plotted)",
+      "expr": "f3il_tool_errors_total",
+      "status": "PASS",
+      "reason": "0",
+      "samples": [
+        {
+          "labels": {
+            "instance": "host.docker.internal:4300",
+            "job": "sr_lab_memory_api"
+          },
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "id": "f3il-activity-floor",
+      "panel": "F3!L sessions / Cognitive events / Tool calls",
+      "expr": "f3il_activity_events_total",
+      "status": "PASS",
+      "reason": "0",
+      "samples": [
+        {
+          "labels": {
+            "instance": "host.docker.internal:4300",
+            "job": "sr_lab_memory_api"
+          },
+          "value": 0.0
+        }
+      ]
+    }
+  ]
+}
