@@ -1,6 +1,6 @@
 # AGI Project — Experiment Log
 
-**Version:** v2.0
+**Version:** v2.6
 **Target repo/branch:** `C:\Users\Tom\Documents\GitHub\AGI` (main)
 **Protocol:** every experiment states its hypothesis, its verification
 criterion (mechanical or empirical — never "looks right"), and its result.
@@ -741,7 +741,57 @@ the backend; run with time_split=true.
 - EXP-007 Phase 2: tail latency / hockey-stick / per-service regimes
 - Multi-judge reader study of EXP-006 if P1 holds
 
+**Instrument repairs** — from the dashboard-baseline closeout, 2026-08-15
+(`sr-lab/observability/FINDINGS.md`; not a pre-registered experiment, so the
+findings are evidence-backed observations rather than adjudicated results).
+These are prerequisites for trusting SR-lab telemetry in any future experiment:
+
+- **Restore the F3!L memory MCP server (currently down).** The
+  `agi-memory-server` image rebuilt 2026-08-15T01:52:24Z fails to start:
+  the `sqlite3` prebuilt binding wants glibc 2.38, `node:22-slim` (bookworm)
+  provides 2.36. Unpinned `npm install` picked a newer upstream prebuild.
+  Fix by forcing a source build (`npm_config_build_from_source=true`; the
+  toolchain is already in the image), pinning sqlite3, or moving the base.
+  Capture the running `sr-lab-memory-api` container first — it pins the last
+  working image, which is no longer in the local image list.
+- Serialise SR runs behind a queue — two concurrent runs segfault gplearn's
+  loky workers and kill the backend process (3 SIGSEGVs / 2 restarts observed).
+  Alternatives: pin `n_jobs=1`, or add `psutil`+`procps` so a dead worker can
+  be reaped without taking uvicorn with it.
+- Scrape the backend directly instead of pushing — `push_to_gateway` PUTs, so
+  every process restart zeroes the cumulative counters. The crash currently
+  erases its own evidence: three runs were lost while *Lost runs* read 0.
+- Rethrow from the inner catches in `handleRemember` / `handleRecall` — they
+  return storage failures as normal results, so `f3il_tool_errors_total`
+  structurally cannot see a failed memory write.
+- Increment `sr_memories_written_total` only on a confirmed write; it currently
+  counts attempts and would climb with the memory bridge switched off.
+- Add a `src` label to the F3!L metrics — the trace distinguishes bridge from
+  Desktop calls, the exposition drops it, so a smoke test is indistinguishable
+  from cognition. All 9 events in the current F3!L row are test or machine
+  traffic; organic cognition is still 0.
+- Clear the orphaned run rows (20, 24, 25), *then* the ghost pushgateway
+  groups — that order matters, since the ghost holds the only surviving run
+  history.
+- Re-capture the active-regime baseline once the first two are done.
+
 ## Revision history
+
+- **v2.6** (2026-08-15) — dashboard-baseline closeout (not a pre-registered
+  experiment; see `sr-lab/observability/`). Baseline v1.2 established for the
+  `sr-lab-agi` Grafana dashboard — 18 executable checks, three snapshots, and
+  `check_baseline.py` to run them against live Prometheus. Seven defects found,
+  two fixed in the dashboard (phantom `or vector(0)` series on three stat
+  panels; duplicate R² bars, now deduped with `max by (dataset)`), plus two new
+  panels (*Lost runs*, *F3!L tool errors*). Five instrument repairs queued
+  above. Two v1.0 claims were retracted after the sweep disproved them:
+  counters are not monotone (they reset on backend restart), and the run
+  duration band was far too narrow (`projectile` takes 6m39s, not seconds).
+  The F3!L row remains uncalibrated: all 9 trace events are test or machine
+  traffic, organic cognition is 0 — and as of the same session the F3!L MCP
+  integration is DOWN, the 01:52 image rebuild having broken the sqlite3
+  native binding against the runtime's glibc (defect 8). The last working
+  build survives only inside the running `sr-lab-memory-api` container.
 
 - **v2.5** (2026-08-11) — TRUTH-PROTOCOL.md v1.0 shipped: the program's
   method distilled into a standalone, domain-free document. Blind

@@ -1,0 +1,238 @@
+{
+  "meta": {
+    "dashboard_uid": "sr-lab-agi",
+    "dashboard_title": "SR-Lab / AGI — Symbolic Regression",
+    "baseline_version": "1.2",
+    "established": "2026-08-15T02:00Z",
+    "established_from": "live localhost:9090, sr-lab backend 3537b1806e73; idle capture over 6 prior runs, then a deliberate run sweep",
+    "prometheus_default": "http://localhost:9090",
+    "notes": "Values here are the *expected reading* of each dashboard panel, not the observed snapshot. Observed snapshots live in snapshots/. Prose rationale for every number is in BASELINE.md.",
+    "changes_since_1_0": [
+      "CORRECTION: sr_* counters are NOT monotone. A backend process restart resets them to zero (fresh registry + push_to_gateway PUT replaces the whole group). v1.0 claimed they never decay; that was wrong.",
+      "CORRECTION: run duration band widened. v1.0's 3-10s came from a favourable window of pendulum/ideal_gas runs. Measured since: 10.8s sequential pendulum, 33-34s for two concurrent runs, projectile still unfinished at 7min.",
+      "Concurrent runs segfault gplearn's loky workers and take the whole backend down. Sequential default-config runs are the only pattern proven stable.",
+      "Dashboard updated to version 5: phantom-series fix on three stat panels, R2 deduped with max by (dataset), new Lost runs and F3!L tool errors panels.",
+      "v1.2: F3!L write path VERIFIED correct end-to-end (all five MCP tools plus the bridge path). The row's non-zero values come from a smoke test, not organic use, and are deliberately not encoded as expected values — 0 remains the correct baseline for an unexercised system."
+    ]
+  },
+
+  "regime": {
+    "active_if_any": [
+      "sum(sr_active_runs) > 0",
+      "sum(rate(sr_runs_started_total[5m])) > 0"
+    ]
+  },
+
+  "checks": [
+    {
+      "id": "scrape-targets-up",
+      "panel": "(dashboard-wide precondition)",
+      "expr": "up{job=~\"sr_lab_.*\"}",
+      "when": "always",
+      "expect": { "eq": 1, "series_min": 2, "severity": "fail" },
+      "note": "Both feeds must be up: sr_lab_pushgateway (batch run metrics) and sr_lab_memory_api (F3!L bridge). A down target makes whole panels go flat rather than error."
+    },
+    {
+      "id": "active-runs",
+      "panel": "Active runs",
+      "expr": "sum(sr_active_runs)",
+      "when": "idle",
+      "expect": { "eq": 0, "severity": "fail" },
+      "note": "At rest this is exactly 0. A stuck non-zero value with no start-rate means a run thread died without decrementing the gauge, or a dead pushgateway group is still reporting its last in-flight value."
+    },
+    {
+      "id": "active-runs-active",
+      "panel": "Active runs",
+      "expr": "sum(sr_active_runs)",
+      "when": "active",
+      "expect": { "min": 0, "max": 8, "severity": "warn" },
+      "note": "Bounded by how many runs you submitted concurrently. >8 on a laptop means the joblib workers are oversubscribed."
+    },
+    {
+      "id": "runs-conserved",
+      "panel": "Runs started / finished / failed (cross-panel invariant)",
+      "expr": "sum(sr_runs_started_total) - sum(sr_runs_finished_total) - sum(sr_active_runs)",
+      "when": "idle",
+      "expect": { "eq": 0, "severity": "fail" },
+      "note": "Started must equal finished+failed once nothing is in flight. A positive residue is a lost run (worker SIGSEGV). CAVEAT discovered in v1.1: this invariant only holds within one backend process lifetime — a restart zeroes the live instance's counters, which ERASES the evidence of the very runs it lost. Three runs (20, 24, 25) were orphaned in DuckDB on 2026-08-15 and the residue still read 0. Cross-check against GET /api/runs for rows stuck in 'running'."
+    },
+    {
+      "id": "runs-failed",
+      "panel": "Runs failed",
+      "expr": "sum(sr_runs_finished_total{status=\"failed\"}) or vector(0)",
+      "when": "always",
+      "expect": { "eq": 0, "severity": "warn" },
+      "note": "Baseline is 0 and the panel is green. Any non-zero value turns it red and should be traced in the backend log before trusting any R² on the same dataset."
+    },
+    {
+      "id": "equations-per-run",
+      "panel": "Equations discovered",
+      "expr": "sum(sr_equations_discovered_total) / sum(sr_runs_finished_total{status=\"finished\"})",
+      "when": "always",
+      "expect": { "min": 5, "max": 12, "severity": "warn" },
+      "note": "The engine persists a ranked shortlist per run, capped by `top_n` (10 in the default config); sympy simplification collapses duplicates, so the realised figure sits at or below that. Measured 7.0 (42/6) before the sweep and 10.0 after. Near 0 means the search returned nothing."
+    },
+    {
+      "id": "instances-reporting",
+      "panel": "Instances reporting",
+      "expr": "count(count by (instance) (sr_build_info))",
+      "when": "always",
+      "expect": { "eq": 1, "severity": "warn" },
+      "note": "MUST equal the number of *live* backend containers, normally 1. Higher = ghost pushgateway groups from destroyed containers, which silently inflate every cumulative stat panel and can duplicate R² bars. Clear with the pushgateway DELETE api (see BASELINE.md)."
+    },
+    {
+      "id": "best-r2",
+      "panel": "Best held-out R² (last run per dataset)",
+      "expr": "sr_last_best_test_r2",
+      "when": "always",
+      "expect": { "min": 0.9, "max": 1.0, "severity": "warn" },
+      "note": "Bundled physics datasets have known closed-form laws, so every bar should sit in the green band (≥0.9). Measured: pendulum 0.9990, ideal_gas 0.9555. A bar below 0.9 means that dataset's last run regressed — an earlier ideal_gas run scored 0.6697 and is exactly the shape to catch."
+    },
+    {
+      "id": "best-r2-no-dupes",
+      "panel": "Best held-out R² (last run per dataset)",
+      "expr": "count by (dataset) (sr_last_best_test_r2)",
+      "when": "always",
+      "expect": { "eq": 1, "severity": "warn" },
+      "note": "One bar per dataset. Two series for the same dataset = the same dataset reported by two instance labels (ghost pushgateway group); the bargauge then shows two identically-named bars with different values."
+    },
+    {
+      "id": "run-duration-p50",
+      "panel": "Run duration (seconds)",
+      "expr": "histogram_quantile(0.50, sum by (le) (rate(sr_run_duration_seconds_bucket[10m])))",
+      "when": "active",
+      "expect": { "min": 1, "max": 120, "nan_ok": true, "severity": "warn" },
+      "note": "Strongly dataset- and concurrency-dependent, so the band is wide on purpose. Measured: 10.8s (pendulum, sequential), 33-34s (two concurrent), p50 45s during the sweep. `projectile` — sin/cos in the function set — was still running past 7 minutes. NaN/No-data is the CORRECT idle appearance: rate() over an empty window is 0/0."
+    },
+    {
+      "id": "run-duration-p95",
+      "panel": "Run duration (seconds)",
+      "expr": "histogram_quantile(0.95, sum by (le) (rate(sr_run_duration_seconds_bucket[10m])))",
+      "when": "active",
+      "expect": { "min": 1, "max": 300, "nan_ok": true, "severity": "warn" },
+      "note": "Measured 4.8–9.75s idle-window, 58.5s during the sweep. p95 pinned at the 1200s top bucket means a runaway search (bad generations/population config or a pathological dataset)."
+    },
+    {
+      "id": "http-p95",
+      "panel": "HTTP p95 latency by path",
+      "expr": "histogram_quantile(0.95, sum by (le) (rate(sr_http_request_seconds_bucket[5m])))",
+      "when": "active",
+      "expect": { "min": 0, "max": 1.0, "nan_ok": true, "severity": "warn" },
+      "note": "Measured 27–67ms across all paths. POST /api/runs must stay sub-second: the engine runs on a background thread, so a multi-second p95 there means the run went synchronous and the API is blocking."
+    },
+    {
+      "id": "http-rate-idle",
+      "panel": "HTTP request rate by path",
+      "expr": "sum(rate(sr_http_requests_total[5m]))",
+      "when": "idle",
+      "expect": { "eq": 0, "severity": "warn" },
+      "note": "Flat 0 when nobody has the UI open. Measured peak during a run burst: 0.337 req/s. Sustained traffic with zero active runs means a browser tab is polling a finished run forever."
+    },
+    {
+      "id": "memories-written",
+      "panel": "Verified laws remembered",
+      "expr": "sum(sr_memories_written_total) or vector(0)",
+      "when": "always",
+      "expect": { "min": 0, "severity": "warn" },
+      "note": "Increments only when a run beats the stored best for that dataset, so it grows far slower than run count and plateaus. Measured 1 (pendulum) against 6 runs. Growing 1:1 with runs would mean the improve-only guard broke."
+    },
+    {
+      "id": "memories-le-runs",
+      "panel": "Verified laws remembered (cross-panel invariant)",
+      "expr": "(sum(sr_memories_written_total) or vector(0)) - sum(sr_runs_finished_total{status=\"finished\"})",
+      "when": "always",
+      "expect": { "max": 0, "severity": "warn" },
+      "note": "Cannot remember more laws than runs that finished."
+    },
+    {
+      "id": "f3il-memories",
+      "panel": "Memories in store",
+      "expr": "f3il_memories_total",
+      "when": "always",
+      "expect": { "min": 1, "series_eq": 1, "severity": "warn" },
+      "note": "Row count in memory.db, read live by the :4300 bridge. Measured 13. A drop to 0 means the bridge lost its DB path, not that memories were deleted — check before panicking."
+    },
+    {
+      "id": "f3il-tool-errors",
+      "panel": "(F3!L row, not currently plotted)",
+      "expr": "f3il_tool_errors_total",
+      "when": "always",
+      "expect": { "eq": 0, "severity": "warn" },
+      "note": "Errored MCP tool calls. Zero at baseline. Worth a panel — it is scraped but nothing on the dashboard shows it."
+    },
+    {
+      "id": "f3il-activity-floor",
+      "panel": "F3!L sessions / Cognitive events / Tool calls",
+      "expr": "f3il_activity_events_total",
+      "when": "always",
+      "expect": { "min": 0, "series_eq": 1, "severity": "warn" },
+      "note": "0 is the honest reading for an unexercised system, not a broken panel. The write path was VERIFIED correct on 2026-08-15 (all five MCP tools plus the bridge path appended to /data/f3il-activity.jsonl and the panels moved), so a zero here means 'nothing has happened', not 'nothing is wired'. The non-zero values currently present came from a scripted smoke test — six events in 58ms, context 'demo' — and are deliberately NOT encoded as expected values. No lower bound is asserted until organic traffic exists."
+    }
+  ],
+
+  "known_artifacts": [
+    {
+      "id": "phantom-vector-zero",
+      "panels": ["F3!L sessions", "Cognitive events", "Memories in store"],
+      "severity": "cosmetic-but-misleading",
+      "detail": "The expression `f3il_x_total or vector(0)` returns TWO series whenever the metric exists, because vector(0) carries an empty label set that never matches the scraped series' {instance,job} labels. The stat panel then renders two numbers (e.g. 13 and 0 side by side). `sum(...) or vector(0)` does not have this problem — which is why 'Verified laws remembered' was fine and these three were not.",
+      "fix": "FIXED in dashboard version 5: left side wrapped, e.g. `sum(f3il_memories_total) or vector(0)`."
+    },
+    {
+      "id": "tool-errors-cannot-see-write-failures",
+      "panels": ["F3!L tool errors", "Tool calls by tool"],
+      "severity": "instrumentation-gap",
+      "detail": "f3il_tool_errors_total counts trace entries with ok:false, and the tracer sets ok:true whenever the handler returns without throwing (mcp-server.js:239). handleRemember and handleRecall each wrap their body in an inner try/catch that RETURNS the error as a normal result ('Failed to store memory: ...') instead of rethrowing, so a failed memory write is recorded as a successful tool call. handleReflect/handleReason/handleAssessConfidence have no inner catch and do surface errors. Consistent with the observed anomaly: the smoke test's remember (ctx 'demo', ok:true) produced no row in memory.db, and it was targeting the real database — the MCP tracer derives its path from dirname(dbPath) with no override and the trace landed in the real AGI directory.",
+      "fix": "Rethrow from the inner catch in handleRemember/handleRecall, or have the tracer inspect the returned payload before setting ok."
+    },
+    {
+      "id": "f3il-src-label-missing",
+      "panels": ["F3!L sessions", "Cognitive events", "Tool calls by tool", "F3!L tool calls (per min) by tool"],
+      "severity": "instrumentation-gap",
+      "detail": "The activity trace records a `src` field distinguishing bridge-driven calls (SR-lab backend hitting /remember and /recall, tagged src:'bridge') from F3!L's own Claude Desktop MCP tool calls (no src). memory-http.js drops that field when building the Prometheus exposition — f3il_tool_calls_total carries only a `tool` label. The dashboard therefore cannot tell automated integration traffic, or a smoke test, from real cognition. This is how a scripted test run can silently become the baseline.",
+      "fix": "Add `src` as a label on f3il_tool_calls_total (and an events-by-src counter) in memory-http.js, then split the F3!L panels by it."
+    },
+    {
+      "id": "memory-write-counter-optimistic",
+      "panels": ["Verified laws remembered", "Laws written to F3!L memory by dataset"],
+      "severity": "instrumentation-gap",
+      "detail": "engine.py calls memory_client.remember() — which spawns a daemon thread and returns immediately — and then increments metrics.memory_written() unconditionally on the next line. memory_client._post swallows every failure (bridge down, DNS, timeout), and remember() returns early when MEMORY_API_URL is empty. So the counter records ATTEMPTS, not confirmed writes, and would keep climbing with the memory bridge switched off entirely. The one law recorded so far did genuinely land (memory.db holds it, tagged sr-lab,law,pendulum, written 2026-08-14T22:21:51Z) — so this is a latent defect, not an observed miscount.",
+      "fix": "Have _post report success back and only increment on a 2xx, or expose a separate sr_memory_write_failures_total so the gap between attempted and landed is visible."
+    },
+    {
+      "id": "counter-reset-on-restart",
+      "panels": ["Runs started", "Runs finished", "Equations discovered", "Best held-out R²", "Verified laws remembered", "Lost runs"],
+      "severity": "data-integrity",
+      "detail": "Every cumulative panel on this dashboard resets to zero when the backend PROCESS restarts, not just when the container is replaced. A fresh process starts with an empty registry, and `push_to_gateway` issues a PUT that replaces the whole {job,instance} group — so the first push after a restart wipes the pre-restart totals. Observed live: after two restarts the live instance had no run counters at all, and the dashboard was showing 'Runs started 4' entirely from a DEAD container's frozen group while real runs were completing. Combined with `restart: unless-stopped`, a crash is close to invisible: the API comes straight back and the graphs quietly renumber from zero.",
+      "fix": "No dashboard-side fix. Either scrape the backend directly instead of pushing (it is a long-lived service, not a batch job — the pushgateway is arguably the wrong tool here), or accept that these panels mean 'since the last restart' and read them that way."
+    },
+    {
+      "id": "concurrent-run-segfault",
+      "panels": ["Lost runs", "Active runs", "Run duration (seconds)"],
+      "severity": "backend-bug",
+      "detail": "Running two symbolic-regression runs at once segfaults a gplearn worker and kills the whole backend process. Three SIGSEGVs / two container restarts were produced on 2026-08-15 while establishing this baseline: one from a single oversized run (population_size 8000 x generations 80), two from two concurrent DEFAULT-config runs. All three faulted at the same site: gplearn/_program.py:423 get_all_indices, inside joblib/loky _parallel_evolve. Cleanup then fails on its own — the python:3.12-slim image has neither `pgrep` nor `psutil`, so loky's kill_process_tree raises FileNotFoundError and the ExecutorManagerThread dies with AttributeError — which is what escalates one dead worker into a dead process. Runs in flight are orphaned in DuckDB as status='running' forever (rows 20, 24, 25).",
+      "fix": "Not fixed. Options: serialise runs behind a queue (one at a time is the only pattern proven stable); pin n_jobs=1 for the fit; or add psutil + procps to the backend image so loky can at least clean up after a worker without taking uvicorn with it."
+    },
+    {
+      "id": "pushgateway-ghosts",
+      "panels": ["Instances reporting", "Runs started", "Runs finished", "Equations discovered", "Best held-out R²"],
+      "severity": "data-integrity",
+      "detail": "The pushgateway keeps a group forever, keyed by {job,instance}, and the instance label defaults to the container hostname. Every rebuilt backend container leaves its final counter values behind permanently. At baseline capture, group b02134b367cf had not pushed for 2h17m while the live backend was 3537b1806e73, so all cumulative stats were sums over a live and a dead container.",
+      "fix": "The R² duplicate is FIXED in dashboard version 5 (`max by (dataset)` collapses instances into one bar). The counter inflation is not a dashboard problem: delete the group with `curl -X DELETE http://localhost:9091/metrics/job/sr_lab_backend/instance/<dead-id>`, or set METRICS_INSTANCE to a stable name so rebuilds reuse one group. CAUTION as of 2026-08-15: the ghost group currently holds the ONLY surviving run history — the live instance's counters were zeroed by a restart — so deleting it right now would blank the top row rather than clean it."
+    },
+    {
+      "id": "idle-nan",
+      "panels": ["Run duration (seconds)", "HTTP p95 latency by path"],
+      "severity": "expected",
+      "detail": "histogram_quantile over a rate window with no observations is 0/0 = NaN; Grafana renders 'No data'. This is the correct idle appearance for these two panels and must not be treated as an outage.",
+      "fix": "none required"
+    },
+    {
+      "id": "f3il-idle-noValue",
+      "panels": ["Since F3!L last active"],
+      "severity": "expected",
+      "detail": "`time() - (f3il_last_activity_timestamp_seconds > 0)` deliberately returns nothing while the timestamp is 0, so the panel shows its noValue text 'idle'. Blank-with-'idle' is correct; a green number would mean activity has happened.",
+      "fix": "none required"
+    }
+  ]
+}
