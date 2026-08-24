@@ -9,11 +9,17 @@
 import { MemoryManager } from './src/memory/manager.js';
 import { ReasoningEngine } from './src/reasoning/engine.js';
 import { IntegrationLayer } from './src/integration/layer.js';
+import { ActivityTracer } from './src/telemetry/activity.js';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Side channel for carrying a result COUNT from a handler to the tracer without
+// putting it on the MCP wire. JSON.stringify ignores symbol keys, so the client
+// never sees it and the response shape is unchanged.
+const TRACE_OUT = Symbol('traceOut');
 
 class SimpleMCPServer {
     constructor() {
@@ -26,7 +32,10 @@ class SimpleMCPServer {
         this.memoryManager = new MemoryManager(dbPath);
         this.reasoningEngine = new ReasoningEngine();
         this.integrationLayer = new IntegrationLayer(this.memoryManager, this.reasoningEngine);
-        
+        // Appends one line per tool call to <db dir>/f3il-activity.jsonl so
+        // F3!L's cognition is observable. Fully fail-safe (see activity.js).
+        this.tracer = new ActivityTracer(join(dirname(dbPath), 'f3il-activity.jsonl'));
+
         this.initialized = false;
         this.setupStdio();
     }
@@ -207,10 +216,11 @@ class SimpleMCPServer {
     
     async handleToolsCall(id, params) {
         const { name, arguments: args } = params;
-        
+        const started = Date.now();
+
         try {
             let result;
-            
+
             switch (name) {
                 case 'remember':
                     result = await this.handleRemember(args);
@@ -230,9 +240,13 @@ class SimpleMCPServer {
                 default:
                     throw new Error(`Unknown tool: ${name}`);
             }
-            
+
+            this.tracer.record(name, args, {
+                ok: true, ms: Date.now() - started, out: result?.[TRACE_OUT]
+            });
             this.sendResponse(id, result);
         } catch (error) {
+            this.tracer.record(name, args, { ok: false, ms: Date.now() - started, err: error.message });
             this.sendError(id, -32603, `Tool execution error: ${error.message}`);
         }
     }
@@ -365,6 +379,7 @@ class SimpleMCPServer {
             
             if (memories.length === 0) {
                 return {
+                    [TRACE_OUT]: 0,
                     content: [{
                         type: 'text',
                         text: `🔍 No memories found for "${args.query}"`
@@ -378,6 +393,7 @@ class SimpleMCPServer {
             }).join('\n');
             
             return {
+                [TRACE_OUT]: memories.length,
                 content: [{
                     type: 'text',
                     text: `🧠 Found ${memories.length} relevant memories:\n\n${memoryText}`

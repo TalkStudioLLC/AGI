@@ -49,6 +49,8 @@ unused/
 .gcloudignore
 # Memory data — NEVER publish (user-owned memories)
 memory.db
+memory.db.backup-*
+*.db.backup*
 simple-memory.json
 .model-cache/
 
@@ -68,3 +70,10 @@ sr-lab/backend/data/*.duckdb
 
 # Protected project data — code is public, data never is
 sr-lab/backend/data/private/
+
+# F3!L activity telemetry (runtime, machine-local)
+f3il-activity.jsonl
+
+# Python bytecode
+__pycache__/
+*.pyc

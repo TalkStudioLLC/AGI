@@ -238,6 +238,57 @@ class MemoryManager {
      * A memory qualifies if either channel finds it. Ranking blends both
      * signals, weighted by the memory's own stored confidence.
      */
+    /**
+     * Revise an existing memory in place — reconsolidation, not a new write.
+     *
+     * Until this existed the store was append-only: once a memory was encoded
+     * badly (wrong salience, wrong context, garbled content) nothing in the
+     * system could ever correct it. Brains solve this by making a retrieved
+     * memory labile and re-writing it; this is the mechanical equivalent.
+     *
+     * Only the fields passed are touched. If `content` changes the embedding is
+     * regenerated, otherwise the existing vector stands.
+     *
+     * NOTE: not exposed as an MCP tool. Letting F3!L rewrite its own memories
+     * unsupervised is a real decision, not a plumbing detail — wire it up
+     * deliberately or not at all.
+     */
+    async update(id, changes = {}) {
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+
+        const existing = await this.getQuery('SELECT * FROM memories WHERE id = ?', [id]);
+        if (!existing) throw new Error(`No memory with id ${id}`);
+
+        const ALLOWED = ['content', 'context', 'type', 'emotional_weight', 'confidence', 'tags'];
+        const fields = Object.keys(changes).filter(k => ALLOWED.includes(k) && changes[k] !== undefined);
+        if (fields.length === 0) return existing;
+
+        const sets = fields.map(f => `${f} = ?`);
+        const values = fields.map(f => changes[f]);
+
+        // Content changed => the old vector describes text that no longer
+        // exists, so recall would match on a memory that isn't there anymore.
+        if (fields.includes('content')) {
+            const embedding = await embedText(changes.content);
+            sets.push('embedding = ?');
+            values.push(embedding ? JSON.stringify(embedding) : null);
+        }
+
+        try {
+            await this.runQuery(
+                `UPDATE memories SET ${sets.join(', ')} WHERE id = ?`,
+                [...values, id]
+            );
+            console.error(`♻️  Revised memory ${id}: ${fields.join(', ')}`);
+            return await this.getQuery('SELECT * FROM memories WHERE id = ?', [id]);
+        } catch (error) {
+            console.error('❌ Failed to revise memory:', error);
+            throw error;
+        }
+    }
+
     async search(query, context = null, limit = 10) {
         if (!this.isInitialized) {
             await this.initialize();

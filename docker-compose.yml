@@ -34,8 +34,29 @@ services:
     # joblib memmaps training arrays into /dev/shm during parallel search;
     # Docker's 64MB default starves the workers (SIGSEGV). Give it room.
     shm_size: "1gb"
+    environment:
+      # Where the backend PUSHES metrics. Reachable by service name on the
+      # compose network. Metrics are fully optional: if this gateway is down
+      # or unset the backend logs a debug line and serves normally.
+      - PUSHGATEWAY_URL=http://pushgateway:9091
+      # Where the backend feeds MEMORY organically. When a run discovers a
+      # held-out-verified law that beats the prior best, it POSTs it here so
+      # F3!L remembers it. Fully optional and fail-safe: if unset or the
+      # bridge is down, the write is skipped and the run is unaffected.
+      - MEMORY_API_URL=http://memory-api:4300
     ports:
       - "8000:8000"               # published for frontend-dev against dockerized API
+    restart: unless-stopped
+
+  # Prometheus Pushgateway — receives pushes from batch-style SR runs and holds
+  # them for Prometheus to scrape. Lives with the app it serves; the external
+  # Prometheus scrapes it via the published host port (host.docker.internal:9091).
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: sr-lab-pushgateway
+    profiles: ["full", "backend"]
+    ports:
+      - "9091:9091"
     restart: unless-stopped
 
   frontend:
@@ -55,6 +76,27 @@ services:
     stdin_open: true              # documents the stdio contract for manual testing:
     volumes:                      #   docker compose --profile memory run --rm memory
       - .:/data
+
+  # HTTP bridge over the SAME MemoryManager/memory.db the MCP server uses, so
+  # the (Python) SR-lab backend can feed memory organically. Runs the F3IL
+  # image with the HTTP entrypoint instead of the stdio one. Mounts the repo
+  # root to /data so it shares memory.db + the embedding model cache with F3!L,
+  # meaning laws written here are recall-able in Claude Desktop.
+  memory-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.memory
+    image: agi-memory-server
+    container_name: sr-lab-memory-api
+    profiles: ["full", "backend"]
+    command: ["node", "memory-http.js"]
+    environment:
+      - MEMORY_HTTP_PORT=4300
+    volumes:
+      - .:/data                   # same memory.db + .model-cache as F3!L
+    ports:
+      - "4300:4300"
+    restart: unless-stopped
 
 volumes:
   srlab-data:
