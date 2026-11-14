@@ -42,7 +42,22 @@ class IntegrationLayer {
         // Store the reflection as a memory.
         // The reflection is an OBJECT. Interpolating it directly yielded
         // "[object Object]" and silently destroyed every reflection F3!L ever
-        // had (see the 2025-05-25 and 2026-08-15 rows). Serialize it instead.
+        // had. Serialize it instead.
+        //
+        // THREE rows are damaged, not two. An earlier version of this note
+        // named only 2025-05-25 and 2026-08-15; the third is 2026-08-16T07:46Z,
+        // written seven minutes AFTER the commit that added this fix, because
+        // the running server had not been restarted onto it yet. A fix lands
+        // when the process picks it up, not when it is committed — so the
+        // damage window closes later than the git history implies. The first
+        // correctly serialized reflection is 2026-08-16T07:53Z.
+        //
+        //   SELECT timestamp FROM memories WHERE content LIKE '%[object Object]%'
+        //
+        // All three are unrecoverable: the objects were never written anywhere
+        // else. brain/ reports the live count rather than a hardcoded number,
+        // so it stays honest if more are ever found.
+        //
         // Prose summary leads so embedding-based recall has real language to
         // match on; the full structure follows so nothing is lost.
         const finalReflection = reflections[reflections.length - 1];

@@ -55,6 +55,25 @@ function findDb() {
 }
 const DB_PATH = findDb();
 
+/**
+ * Client-facing failure reasons.
+ *
+ * These are deliberately short noun phrases that disclose nothing about the
+ * host: no filesystem paths, no SQLite internals, no exception text. CodeQL
+ * flagged the original handlers for exactly that (information exposure through
+ * a stack trace) and the autofix landed in #3 — but it only reached two of the
+ * four sites, and the path interpolated into the "missing" reason was never
+ * flagged at all. Routing every reason through these constants is what stops
+ * the next handler from reintroducing it.
+ *
+ * The detail is not lost, only relocated: each catch logs the real error
+ * server-side with a timestamp, where the operator can see it and a browser
+ * cannot. The page pairs these with its own prefix ("Composition unavailable —
+ * …"), so they must read as causes, not as whole sentences.
+ */
+const DB_MISSING = 'memory.db not found';
+const DB_UNREADABLE = 'database read failed';
+
 const send = (res, code, body, type = 'application/json') => {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
@@ -94,7 +113,7 @@ function parsePrometheus(text) {
  * view reports them as damage rather than pretending the semantic tier is whole.
  */
 function composition() {
-  if (!fs.existsSync(DB_PATH)) return { available: false, reason: `no memory.db at ${DB_PATH}` };
+  if (!fs.existsSync(DB_PATH)) return { available: false, reason: DB_MISSING };
   let db;
   try {
     db = new DatabaseSync(DB_PATH, { readOnly: true });
@@ -116,8 +135,8 @@ function composition() {
       },
     };
   } catch (err) {
-    console.error('composition() failed:', err);
-    return { available: false, reason: 'composition unavailable' };
+    console.error(`[${new Date().toISOString()}] composition() failed:`, err);
+    return { available: false, reason: DB_UNREADABLE };
   } finally {
     try { db?.close(); } catch { /* already closed */ }
   }
@@ -132,7 +151,7 @@ function composition() {
  * of the control. Bucket server-side and every click costs a round trip.
  */
 function timelinePoints() {
-  if (!fs.existsSync(DB_PATH)) return { available: false, reason: `no memory.db at ${DB_PATH}` };
+  if (!fs.existsSync(DB_PATH)) return { available: false, reason: DB_MISSING };
   let db;
   try {
     db = new DatabaseSync(DB_PATH, { readOnly: true });
@@ -143,7 +162,8 @@ function timelinePoints() {
       ).all(),
     };
   } catch (err) {
-    return { available: false, reason: String(err.message || err) };
+    console.error(`[${new Date().toISOString()}] timelinePoints() failed:`, err);
+    return { available: false, reason: DB_UNREADABLE };
   } finally {
     try { db?.close(); } catch { /* already closed */ }
   }
