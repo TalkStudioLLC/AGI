@@ -16,6 +16,13 @@
     --text-muted: #7a7873;
     --series-1: #2a78d6;
     --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #6250d6;
+    --series-8: #e34948;
+    --series-other: #888780;
     --status-good: #008300;
     --status-serious: #b45309;
     --status-critical: #c02a2a;
@@ -33,6 +40,13 @@
       --text-muted: #908f87;
       --series-1: #3987e5;
       --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #0ca30c;
+      --series-7: #9085e9;
+      --series-8: #e66767;
+      --series-other: #908f87;
       --status-good: #0ca30c;
       --status-serious: #d99b26;
       --status-critical: #e66767;
@@ -95,6 +109,32 @@
   .feed .ms { color: var(--text-muted); text-align: right; }
   .err { color: var(--status-critical); font-size: 13px; }
   .ratio { font: 500 19px var(--mono); }
+  .ctl { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0; border-radius: 0; border-left: 1px solid var(--border-strong);
+    padding: 6px 11px; font-size: 12.5px; background: var(--surface-1); color: var(--text-secondary);
+  }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--surface-0); color: var(--text-primary); font-weight: 500; }
+  .chartwrap { position: relative; }
+  .chartwrap svg { display: block; width: 100%; height: auto; }
+  .gridline { stroke: var(--border); stroke-width: 1; }
+  .axis { fill: var(--text-muted); font: 400 11px var(--mono); }
+  .slot:hover .hitbox { fill: var(--text-muted); fill-opacity: .07; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; display: none;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; min-width: 132px; box-shadow: 0 2px 10px rgba(0,0,0,.14);
+  }
+  .tip h4 { margin: 0 0 5px; font: 500 12px var(--mono); color: var(--text-primary); }
+  .tip div { display: flex; justify-content: space-between; gap: 12px; color: var(--text-secondary); }
+  .tip b { font: 400 12px var(--mono); color: var(--text-primary); }
+  table.tv { width: 100%; border-collapse: collapse; font: 400 12px var(--mono); margin-top: 6px; }
+  table.tv th, table.tv td { text-align: right; padding: 4px 8px; border-top: 1px solid var(--border); white-space: nowrap; }
+  table.tv th:first-child, table.tv td:first-child { text-align: left; }
+  table.tv thead th { color: var(--text-secondary); font-weight: 400; border-top: 0; }
+  .scroll { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -106,6 +146,30 @@
   <p class="sub">Live state of the memory service — faculties, memory tiers and the activity trace. Read-only.</p>
 
   <div class="tiles" id="tiles"></div>
+
+  <section class="card" style="margin-bottom:14px">
+    <h2>Timeline</h2>
+    <p class="note" style="margin:0 0 12px" id="tlSub">Memory formation over time, stacked by context.</p>
+    <div class="ctl">
+      <span class="seg" role="group" aria-label="Source">
+        <button type="button" data-src="memories" aria-pressed="true">memories</button>
+        <button type="button" data-src="activity" aria-pressed="false">activity</button>
+      </span>
+      <span class="seg" role="group" aria-label="Granularity">
+        <button type="button" data-g="minute" aria-pressed="false">min</button>
+        <button type="button" data-g="hour" aria-pressed="false">hour</button>
+        <button type="button" data-g="day" aria-pressed="true">day</button>
+        <button type="button" data-g="week" aria-pressed="false">week</button>
+        <button type="button" data-g="month" aria-pressed="false">month</button>
+        <button type="button" data-g="year" aria-pressed="false">year</button>
+      </span>
+      <button type="button" id="tvBtn" aria-pressed="false">Table view</button>
+    </div>
+    <div class="legend" id="tlLegend"></div>
+    <div class="chartwrap"><div id="tlChart"></div><div class="tip" id="tlTip"></div></div>
+    <div class="scroll" id="tlTable" hidden></div>
+    <p class="note" id="tlRange"></p>
+  </section>
 
   <div class="grid cols" style="margin-bottom:14px">
     <section class="card">
@@ -273,6 +337,231 @@ $('probeForm').addEventListener('submit', async (ev) => {
   }
 });
 
+/* ---- Timeline -------------------------------------------------------------
+ * Points arrive raw and are bucketed here, so switching granularity is instant.
+ * Window = the last N buckets ending at the newest point of the chosen source;
+ * a fixed calendar domain would be mostly empty (the corpus spans 15 months but
+ * arrives in bursts), and at minute granularity that is ~650k empty buckets.
+ * Buckets step with Date arithmetic, not fixed milliseconds, so month and year
+ * stay calendar-correct.
+ * ------------------------------------------------------------------------- */
+const TL = { src: 'memories', g: 'day', table: false, data: null };
+const BUCKETS = { minute: 60, hour: 48, day: 30, week: 26, month: 18, year: 6 };
+const SERIES_VARS = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7','--series-8'];
+
+function floorTo(date, g) {
+  const x = new Date(date);
+  if (g === 'minute') { x.setSeconds(0, 0); return x; }
+  x.setSeconds(0, 0);
+  if (g === 'hour') { x.setMinutes(0); return x; }
+  x.setMinutes(0);
+  if (g === 'day') { x.setHours(0); return x; }
+  x.setHours(0);
+  if (g === 'week') { x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+  if (g === 'month') { x.setDate(1); return x; }
+  if (g === 'year') { x.setMonth(0, 1); return x; }
+  return x;
+}
+function stepBack(date, g) {
+  const x = new Date(date);
+  if (g === 'minute') x.setMinutes(x.getMinutes() - 1);
+  else if (g === 'hour') x.setHours(x.getHours() - 1);
+  else if (g === 'day') x.setDate(x.getDate() - 1);
+  else if (g === 'week') x.setDate(x.getDate() - 7);
+  else if (g === 'month') x.setMonth(x.getMonth() - 1);
+  else if (g === 'year') x.setFullYear(x.getFullYear() - 1);
+  return x;
+}
+function fmtBucket(d, g) {
+  const p = (n) => String(n).padStart(2, '0');
+  if (g === 'minute') return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (g === 'hour') return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}h`;
+  if (g === 'day' || g === 'week') return `${d.getMonth() + 1}/${d.getDate()}`;
+  if (g === 'month') return d.toLocaleString(undefined, { month: 'short', year: '2-digit' });
+  return String(d.getFullYear());
+}
+function niceMax(v) {
+  if (v <= 1) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (mag * m >= v) return mag * m;
+  return mag * 10;
+}
+
+function buildTimeline() {
+  const pts = (TL.src === 'memories' ? TL.data.memories : TL.data.activity) || [];
+  const parsed = pts.map(p => ({ ms: new Date(p.t).getTime(), cat: p.cat }))
+    .filter(p => Number.isFinite(p.ms));
+  if (!parsed.length) return null;
+
+  // Window = up to N buckets back from the newest point, but never earlier than
+  // the oldest point: at year granularity a flat N would show 2021-2024, years
+  // in which no memory could exist. Gaps INSIDE the corpus are kept — a month
+  // with nothing in it is a real fact about this brain, not padding.
+  const n = BUCKETS[TL.g];
+  const latest = floorTo(new Date(Math.max(...parsed.map(p => p.ms))), TL.g);
+  const oldest = floorTo(new Date(Math.min(...parsed.map(p => p.ms))), TL.g).getTime();
+  const edges = [latest];
+  for (let i = 1; i < n; i++) {
+    const back = stepBack(edges[0], TL.g);
+    if (back.getTime() < oldest) break;
+    edges.unshift(back);
+  }
+  const startMs = edges[0].getTime();
+  const index = new Map(edges.map((d, i) => [d.getTime(), i]));
+
+  const counts = edges.map(() => ({}));
+  const totalsByCat = {};
+  for (const p of parsed) {
+    if (p.ms < startMs) continue;
+    const i = index.get(floorTo(new Date(p.ms), TL.g).getTime());
+    if (i === undefined) continue;
+    counts[i][p.cat] = (counts[i][p.cat] || 0) + 1;
+    totalsByCat[p.cat] = (totalsByCat[p.cat] || 0) + 1;
+  }
+
+  const ranked = Object.entries(totalsByCat).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  const named = ranked.slice(0, 8);
+  const hasOther = ranked.length > 8;
+  const series = named.map((name, i) => ({ name, color: `var(${SERIES_VARS[i]})` }));
+  if (hasOther) series.push({ name: 'other', color: 'var(--series-other)' });
+
+  const rows = counts.map((c) => {
+    const row = {};
+    for (const s of series) row[s.name] = 0;
+    for (const [cat, v] of Object.entries(c)) {
+      row[named.includes(cat) ? cat : 'other'] = (row[named.includes(cat) ? cat : 'other'] || 0) + v;
+    }
+    return row;
+  });
+  return { edges, rows, series, total: rows.reduce((a, r) => a + Object.values(r).reduce((x, y) => x + y, 0), 0) };
+}
+
+function renderTimeline() {
+  if (!TL.data) return;
+  $('tlSub').textContent = TL.src === 'memories'
+    ? 'Memory formation over time, stacked by context.'
+    : 'Bridge calls over time, stacked by faculty.';
+  const t = buildTimeline();
+  if (!t) { $('tlChart').innerHTML = '<p class="note">No points for this source.</p>'; $('tlLegend').innerHTML = ''; $('tlRange').textContent = ''; return; }
+
+  const W = 900, H = 250, padL = 46, padR = 10, padT = 12, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  // Thin marks: a 2-bucket year view would otherwise draw 400px-wide slabs.
+  const slot = plotW / t.edges.length, barW = Math.min(Math.max(1, slot - 2), 56);
+  const stackTotals = t.rows.map(r => Object.values(r).reduce((a, b) => a + b, 0));
+  const maxY = niceMax(Math.max(...stackTotals, 0));
+
+  let marks = '';
+  for (let i = 0; i < t.edges.length; i++) {
+    const x = padL + i * slot + (slot - barW) / 2;
+    let cursor = padT + plotH;
+    const stacked = t.series.filter(s => (t.rows[i][s.name] || 0) > 0);
+    stacked.forEach((s, si) => {
+      const v = t.rows[i][s.name];
+      const h = v / maxY * plotH;
+      const top = cursor - h;
+      const segH = Math.max(1, h - (si < stacked.length - 1 ? 2 : 0));
+      const isTop = si === stacked.length - 1;
+      marks += isTop
+        ? `<path d="${roundedTop(x, top, barW, segH, 4)}" fill="${s.color}"/>`
+        : `<rect x="${x}" y="${top + (h - segH)}" width="${barW}" height="${segH}" fill="${s.color}" rx="1"/>`;
+      cursor -= h;
+    });
+    marks += `<rect class="hitbox" x="${padL + i * slot}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent" data-i="${i}"/>`;
+  }
+
+  let grid = '', yl = '';
+  for (const frac of [0, 0.5, 1]) {
+    const y = padT + plotH - frac * plotH;
+    grid += `<line class="gridline" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
+    yl += `<text class="axis" x="${padL - 8}" y="${y + 4}" text-anchor="end">${Math.round(maxY * frac)}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(t.edges.length / 7));
+  let xl = '';
+  t.edges.forEach((d, i) => {
+    if (i % every) return;
+    xl += `<text class="axis" x="${padL + i * slot + slot / 2}" y="${H - 10}" text-anchor="middle">${esc(fmtBucket(d, TL.g))}</text>`;
+  });
+
+  $('tlChart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Stacked ${TL.src} per ${TL.g}">${grid}${marks}${yl}${xl}</svg>`;
+  $('tlLegend').innerHTML = t.series.map(s =>
+    `<span><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
+  const first = t.edges[0], last = t.edges[t.edges.length - 1];
+  $('tlRange').textContent =
+    `${t.edges.length} buckets of 1 ${TL.g} · ${fmtBucket(first, TL.g)} to ${fmtBucket(last, TL.g)} · ${t.total} points in window`;
+
+  wireTip(t, { W, padL, padT, plotH, slot });
+  if (TL.table) renderTable(t);
+}
+
+function roundedTop(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
+}
+
+function wireTip(t, geo) {
+  const svg = $('tlChart').querySelector('svg'), tip = $('tlTip'), wrap = svg.parentElement;
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  svg.addEventListener('mousemove', (ev) => {
+    const r = svg.getBoundingClientRect();
+    const vx = (ev.clientX - r.left) / r.width * geo.W;
+    const i = Math.floor((vx - geo.padL) / geo.slot);
+    if (i < 0 || i >= t.edges.length) { tip.style.display = 'none'; return; }
+    const row = t.rows[i], hits = t.series.filter(s => row[s.name] > 0);
+    const total = hits.reduce((a, s) => a + row[s.name], 0);
+    tip.innerHTML = `<h4>${esc(fmtBucket(t.edges[i], TL.g))}</h4>` + (total === 0
+      ? '<div style="color:var(--text-muted)">nothing</div>'
+      : hits.map(s => `<div><span><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}</span><b>${row[s.name]}</b></div>`).join('')
+        + `<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px"><span>total</span><b>${total}</b></div>`);
+    tip.style.display = 'block';
+    const wr = wrap.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(0, ev.clientX - wr.left + 12), wr.width - tw - 2) + 'px';
+    tip.style.top = Math.max(0, ev.clientY - wr.top - 10) + 'px';
+  });
+}
+
+/* Table view is not optional decoration: three light-mode series sit below 3:1
+ * contrast on the surface, which obliges a non-colour reading of the same data. */
+function renderTable(t) {
+  const rows = t.edges.map((d, i) => ({ d, r: t.rows[i], tot: Object.values(t.rows[i]).reduce((a, b) => a + b, 0) }))
+    .filter(x => x.tot > 0).reverse();
+  const empty = t.edges.length - rows.length;
+  $('tlTable').innerHTML = `<table class="tv">
+    <thead><tr><th>bucket</th>${t.series.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>total</th></tr></thead>
+    <tbody>${rows.map(x => `<tr><td>${esc(fmtBucket(x.d, TL.g))}</td>${t.series.map(s =>
+      `<td>${x.r[s.name] || ''}</td>`).join('')}<td>${x.tot}</td></tr>`).join('')}</tbody>
+  </table>${empty ? `<p class="note">${empty} empty bucket${empty === 1 ? '' : 's'} omitted.</p>` : ''}`;
+}
+
+document.querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => {
+  TL.src = b.dataset.src;
+  document.querySelectorAll('[data-src]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  renderTimeline();
+}));
+document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
+  TL.g = b.dataset.g;
+  document.querySelectorAll('[data-g]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  renderTimeline();
+}));
+$('tvBtn').addEventListener('click', () => {
+  TL.table = !TL.table;
+  $('tvBtn').setAttribute('aria-pressed', String(TL.table));
+  $('tlTable').hidden = !TL.table;
+  if (TL.table) renderTimeline();
+});
+
+async function loadTimeline() {
+  try {
+    TL.data = await (await fetch('/api/timeline')).json();
+    renderTimeline();
+  } catch (err) {
+    $('tlChart').innerHTML = `<p class="err">Timeline unavailable: ${esc(err.message)}</p>`;
+  }
+}
+
+loadTimeline(); setInterval(loadTimeline, 30000);
 loadState(); loadActivity();
 setInterval(loadState, 15000);
 setInterval(loadActivity, 15000);

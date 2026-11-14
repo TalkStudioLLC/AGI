@@ -122,6 +122,32 @@ function composition() {
   }
 }
 
+/**
+ * Raw (timestamp, category) points for the timeline, read-only.
+ *
+ * Deliberately NOT bucketed server-side. The whole corpus is ~300 points, so
+ * shipping it raw lets the granularity control re-bucket instantly in the page
+ * with no refetch — and switching minute/hour/day/week/month/year is the point
+ * of the control. Bucket server-side and every click costs a round trip.
+ */
+function timelinePoints() {
+  if (!fs.existsSync(DB_PATH)) return { available: false, reason: `no memory.db at ${DB_PATH}` };
+  let db;
+  try {
+    db = new DatabaseSync(DB_PATH, { readOnly: true });
+    return {
+      available: true,
+      memories: db.prepare(
+        `SELECT timestamp t, COALESCE(context,'(none)') cat, type FROM memories ORDER BY timestamp`
+      ).all(),
+    };
+  } catch (err) {
+    return { available: false, reason: String(err.message || err) };
+  } finally {
+    try { db?.close(); } catch { /* already closed */ }
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   if (req.method !== 'GET') return send(res, 405, { error: 'read-only server' });
@@ -146,6 +172,18 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/activity') {
       return send(res, 200, (await bridge('/activity')).json());
+    }
+
+    // Safe to poll. Memory points come from SQLite; activity points from the
+    // bridge's own trace. Both carry a category so the page can stack them.
+    if (url.pathname === '/api/timeline') {
+      const points = timelinePoints();
+      let activity = [];
+      try {
+        activity = ((await bridge('/activity')).json().events || [])
+          .map((e) => ({ t: e.ts, cat: e.tool }));
+      } catch { /* trace unavailable — memories alone still render */ }
+      return send(res, 200, { ok: true, ...points, activity });
     }
 
     // NOT safe to poll — appends to the activity trace. User-triggered only.
