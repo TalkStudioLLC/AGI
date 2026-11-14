@@ -116,7 +116,8 @@ function composition() {
       },
     };
   } catch (err) {
-    return { available: false, reason: String(err.message || err) };
+    console.error('composition() failed:', err);
+    return { available: false, reason: 'composition unavailable' };
   } finally {
     try { db?.close(); } catch { /* already closed */ }
   }
@@ -197,7 +198,8 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, { error: 'not found' });
   } catch (err) {
-    return send(res, 502, { error: String(err.message || err) });
+    console.error('request handling failed:', err);
+    return send(res, 502, { error: 'upstream unavailable' });
   }
 });
 
