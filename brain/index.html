@@ -284,7 +284,7 @@ async function loadState() {
         ${c.gradedConfidence.graded}/${c.gradedConfidence.total} memories, emotional weight on ${c.gradedEmotion.graded}/${c.gradedEmotion.total}.</div>`;
       $('tierNotes').innerHTML = notes;
     } else {
-      $('tierNotes').innerHTML = `<div class="callout crit">Composition unavailable: ${esc(c.reason)}</div>`;
+      $('tierNotes').innerHTML = `<div class="callout crit">Composition unavailable — ${esc(c.reason)}.</div>`;
     }
   } catch (err) {
     $('liveTxt').textContent = 'offline — ' + err.message;
