@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F3!L brain view</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --border: #e2e0da;
+    --border-strong: #cbc8c0;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7873;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #6250d6;
+    --series-8: #e34948;
+    --series-other: #888780;
+    --status-good: #008300;
+    --status-serious: #b45309;
+    --status-critical: #c02a2a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --border: #2e2e2c;
+      --border-strong: #46463f;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #908f87;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #0ca30c;
+      --series-7: #9085e9;
+      --series-8: #e66767;
+      --series-other: #908f87;
+      --status-good: #0ca30c;
+      --status-serious: #d99b26;
+      --status-critical: #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 56px;
+    background: var(--surface-0); color: var(--text-primary);
+    font: 400 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 21px; font-weight: 500; margin: 0; }
+  h2 { font-size: 15px; font-weight: 500; margin: 0 0 2px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 24px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-good); display: inline-block; }
+  .dot.down { background: var(--status-critical); }
+  .grid { display: grid; gap: 14px; }
+  .cols { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .note { color: var(--text-muted); font-size: 12.5px; margin: 10px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .tile .k { color: var(--text-secondary); font-size: 12.5px; }
+  .tile .v { font: 500 26px/1.25 var(--mono); letter-spacing: -0.5px; margin-top: 2px; }
+  .tile .x { color: var(--text-muted); font-size: 12px; }
+  .row { display: grid; grid-template-columns: 112px 1fr 56px; align-items: center; gap: 10px; padding: 5px 0; }
+  .row .lbl { color: var(--text-secondary); font-size: 13px; text-align: right; }
+  .row .num { font: 400 13px var(--mono); color: var(--text-primary); }
+  .track { background: var(--surface-0); border-radius: 4px; height: 16px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 4px; }
+  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+  .callout { border-left: 3px solid var(--status-serious); border-radius: 0; padding: 8px 0 8px 12px; margin-top: 14px; font-size: 13px; color: var(--text-secondary); }
+  .callout.crit { border-left-color: var(--status-critical); }
+  form { display: flex; gap: 8px; margin: 2px 0 0; }
+  input[type=text] {
+    flex: 1; padding: 9px 12px; border-radius: 8px; font-size: 14px;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  button {
+    padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  button:hover { border-color: var(--text-muted); }
+  button[disabled] { opacity: .55; cursor: default; }
+  .hit { border-top: 1px solid var(--border); padding: 12px 0 2px; }
+  .hit:first-of-type { border-top: 0; }
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; font: 400 11.5px var(--mono); color: var(--text-muted); margin-bottom: 4px; }
+  .pill { border: 1px solid var(--border-strong); border-radius: 999px; padding: 1px 8px; }
+  .hit p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+  .feed { margin: 0; padding: 0; list-style: none; font: 400 12.5px var(--mono); }
+  .feed li { display: grid; grid-template-columns: 78px 100px 1fr 54px; gap: 10px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .feed li:first-child { border-top: 0; }
+  .feed .t { color: var(--text-muted); }
+  .feed .in { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed .ms { color: var(--text-muted); text-align: right; }
+  .err { color: var(--status-critical); font-size: 13px; }
+  .ratio { font: 500 19px var(--mono); }
+  .ctl { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0; border-radius: 0; border-left: 1px solid var(--border-strong);
+    padding: 6px 11px; font-size: 12.5px; background: var(--surface-1); color: var(--text-secondary);
+  }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--surface-0); color: var(--text-primary); font-weight: 500; }
+  .chartwrap { position: relative; }
+  .chartwrap svg { display: block; width: 100%; height: auto; }
+  .gridline { stroke: var(--border); stroke-width: 1; }
+  .axis { fill: var(--text-muted); font: 400 11px var(--mono); }
+  .slot:hover .hitbox { fill: var(--text-muted); fill-opacity: .07; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; display: none;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; min-width: 132px; box-shadow: 0 2px 10px rgba(0,0,0,.14);
+  }
+  .tip h4 { margin: 0 0 5px; font: 500 12px var(--mono); color: var(--text-primary); }
+  .tip div { display: flex; justify-content: space-between; gap: 12px; color: var(--text-secondary); }
+  .tip b { font: 400 12px var(--mono); color: var(--text-primary); }
+  table.tv { width: 100%; border-collapse: collapse; font: 400 12px var(--mono); margin-top: 6px; }
+  table.tv th, table.tv td { text-align: right; padding: 4px 8px; border-top: 1px solid var(--border); white-space: nowrap; }
+  table.tv th:first-child, table.tv td:first-child { text-align: left; }
+  table.tv thead th { color: var(--text-secondary); font-weight: 400; border-top: 0; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>F3!L brain view</h1>
+    <span id="live"><span class="dot"></span> <span id="liveTxt" style="font-size:12.5px;color:var(--text-secondary)">connecting</span></span>
+  </header>
+  <p class="sub">Live state of the memory service — faculties, memory tiers and the activity trace. Read-only.</p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card" style="margin-bottom:14px">
+    <h2>Timeline</h2>
+    <p class="note" style="margin:0 0 12px" id="tlSub">Memory formation over time, stacked by context.</p>
+    <div class="ctl">
+      <span class="seg" role="group" aria-label="Source">
+        <button type="button" data-src="memories" aria-pressed="true">memories</button>
+        <button type="button" data-src="activity" aria-pressed="false">activity</button>
+      </span>
+      <span class="seg" role="group" aria-label="Granularity">
+        <button type="button" data-g="minute" aria-pressed="false">min</button>
+        <button type="button" data-g="hour" aria-pressed="false">hour</button>
+        <button type="button" data-g="day" aria-pressed="true">day</button>
+        <button type="button" data-g="week" aria-pressed="false">week</button>
+        <button type="button" data-g="month" aria-pressed="false">month</button>
+        <button type="button" data-g="year" aria-pressed="false">year</button>
+      </span>
+      <button type="button" id="tvBtn" aria-pressed="false">Table view</button>
+    </div>
+    <div class="legend" id="tlLegend"></div>
+    <div class="chartwrap"><div id="tlChart"></div><div class="tip" id="tlTip"></div></div>
+    <div class="scroll" id="tlTable" hidden></div>
+    <p class="note" id="tlRange"></p>
+  </section>
+
+  <div class="grid cols" style="margin-bottom:14px">
+    <section class="card">
+      <h2>Faculty activity</h2>
+      <p class="note" style="margin:0 0 12px">Tool calls since the trace began. One measure, so one colour.</p>
+      <div id="faculties"></div>
+      <div id="asym"></div>
+    </section>
+
+    <section class="card">
+      <h2>Memory tiers</h2>
+      <p class="note" style="margin:0 0 12px">Episodes recorded against concepts distilled from them.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--series-1)"></i>episodic</span>
+        <span><i class="swatch" style="background:var(--series-2)"></i>semantic</span>
+      </div>
+      <div id="tiers"></div>
+      <div id="tierNotes"></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-bottom:14px">
+    <h2>Recall probe</h2>
+    <p class="note" style="margin:0 0 12px">Runs a real <code>/recall</code> against the bridge — semantic over 384-dim vectors, plus per-term keyword. This one writes: the bridge records every recall into the activity trace below, so it only fires when you ask.</p>
+    <form id="probeForm">
+      <input type="text" id="q" placeholder="e.g. identity, the truth protocol, what broke" autocomplete="off">
+      <button type="submit" id="probeBtn">Recall</button>
+    </form>
+    <div id="probeErr" class="err" style="display:none"></div>
+    <div id="hits"></div>
+  </section>
+
+  <section class="card">
+    <h2>Activity trace</h2>
+    <p class="note" style="margin:0 0 12px">Most recent calls through the bridge. Polling this is side-effect free.</p>
+    <ul class="feed" id="feed"></ul>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const metric = (rows, name, labels = {}) => {
+  const hit = rows.find(r => r.name === name &&
+    Object.entries(labels).every(([k, v]) => r.labels[k] === v));
+  return hit ? hit.value : null;
+};
+function ago(iso) {
+  if (!iso) return '—';
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 90) return Math.round(d) + 's ago';
+  if (d < 5400) return Math.round(d / 60) + 'm ago';
+  if (d < 172800) return Math.round(d / 3600) + 'h ago';
+  return Math.round(d / 86400) + 'd ago';
+}
+function bars(rows, color) {
+  const max = Math.max(...rows.map(r => r.n), 1);
+  return rows.map(r => `
+    <div class="row" title="${esc(r.label)}: ${r.n}">
+      <span class="lbl">${esc(r.label)}</span>
+      <span class="track"><span class="bar" style="width:${(r.n / max * 100).toFixed(1)}%;background:${r.color || color}"></span></span>
+      <span class="num">${r.n}</span>
+    </div>`).join('');
+}
+
+const FACULTY_ORDER = ['remember', 'recall', 'reflect', 'reason', 'assess_confidence'];
+
+async function loadState() {
+  try {
+    const s = await (await fetch('/api/state')).json();
+    const m = s.metrics, c = s.composition;
+    $('liveTxt').textContent = 'live · updated ' + new Date(s.at).toLocaleTimeString();
+    $('live').querySelector('.dot').classList.toggle('down', metric(m, 'memory_bridge_up') !== 1);
+
+    const total = s.health?.memories ?? metric(m, 'f3il_memories_total');
+    const cov = c.available ? c.coverage : null;
+    const errs = metric(m, 'f3il_tool_errors_total');
+    const lastMem = c.available ? c.span?.last : null;
+    $('tiles').innerHTML = [
+      ['memories', total ?? '—', c.available ? `${c.byType.length} tiers` : ''],
+      ['indexed', cov ? `${cov.embedded}/${cov.total}` : '—', cov && cov.embedded === cov.total ? 'full recall capacity' : 'partial'],
+      ['last memory', ago(lastMem), lastMem ? new Date(lastMem).toLocaleDateString() : ''],
+      ['trace events', metric(m, 'f3il_activity_events_total') ?? '—', errs === 0 ? 'no errors' : `${errs} errors`],
+      ['bridge', metric(m, 'memory_bridge_up') === 1 ? 'up' : 'down', 'port 4300'],
+    ].map(([k, v, x]) => `<div class="card tile"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="x">${esc(x)}</div></div>`).join('');
+
+    const fac = FACULTY_ORDER
+      .map(t => ({ label: t.replace('assess_', ''), n: metric(m, 'f3il_tool_calls_total', { tool: t }) ?? 0 }))
+      .filter(r => r.n > 0);
+    $('faculties').innerHTML = bars(fac, 'var(--series-1)');
+    const w = metric(m, 'f3il_tool_calls_total', { tool: 'remember' }) ?? 0;
+    const r = metric(m, 'f3il_tool_calls_total', { tool: 'recall' }) ?? 0;
+    $('asym').innerHTML = r > 0 ? `<div class="callout">Writes outnumber reads
+      <span class="ratio">${(w / r).toFixed(1)}:1</span> — it records far more than it consults.</div>` : '';
+
+    if (c.available) {
+      const tiers = c.byType.map((t, i) => ({
+        label: t.type, n: t.n, color: i === 0 ? 'var(--series-1)' : 'var(--series-2)'
+      }));
+      $('tiers').innerHTML = bars(tiers, 'var(--series-1)');
+      const ep = c.byType.find(t => t.type === 'episodic')?.n ?? 0;
+      const se = c.byType.find(t => t.type === 'semantic')?.n ?? 0;
+      let notes = '';
+      if (se > 0) notes += `<div class="callout">Consolidation ratio
+        <span class="ratio">${(ep / se).toFixed(0)}:1</span> — ${ep} episodes have produced ${se} concepts.</div>`;
+      if (c.damaged > 0) notes += `<div class="callout crit"><strong>${c.damaged} memories are unrecoverable</strong> —
+        stored as <code>[object Object]</code> before reflection output was serialized. They still occupy the semantic tier.</div>`;
+      const st = c.sideTables, empty = Object.entries(st).filter(([, n]) => n === 0).map(([k]) => k);
+      if (empty.length) notes += `<div class="callout">Never written: <code>${empty.join('</code>, <code>')}</code> —
+        schema exists, nothing has ever been stored there.</div>`;
+      if (c.gradedConfidence) notes += `<div class="callout">Graded fields are nearly constant: confidence varies on
+        ${c.gradedConfidence.graded}/${c.gradedConfidence.total} memories, emotional weight on ${c.gradedEmotion.graded}/${c.gradedEmotion.total}.</div>`;
+      $('tierNotes').innerHTML = notes;
+    } else {
+      $('tierNotes').innerHTML = `<div class="callout crit">Composition unavailable: ${esc(c.reason)}</div>`;
+    }
+  } catch (err) {
+    $('liveTxt').textContent = 'offline — ' + err.message;
+    $('live').querySelector('.dot').classList.add('down');
+  }
+}
+
+async function loadActivity() {
+  try {
+    const a = await (await fetch('/api/activity')).json();
+    $('feed').innerHTML = (a.events || []).slice(0, 14).map(e => `
+      <li title="${esc(e.tool)} · ${esc(e.ts)} · ${e.ms}ms${e.ctx ? ' · ' + esc(e.ctx) : ''}">
+        <span class="t">${ago(e.ts)}</span>
+        <span style="color:${e.ok ? 'var(--text-primary)' : 'var(--status-critical)'}">${esc(e.tool)}</span>
+        <span class="in">${esc(e.ctx ? '[' + e.ctx + '] ' : '')}${esc(e.in || '')}</span>
+        <span class="ms">${e.ms}ms</span>
+      </li>`).join('');
+  } catch { /* leave the last good feed in place */ }
+}
+
+$('probeForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const q = $('q').value.trim();
+  const errBox = $('probeErr');
+  errBox.style.display = 'none';
+  if (!q) { errBox.textContent = 'Enter something to recall first.'; errBox.style.display = 'block'; return; }
+  $('probeBtn').disabled = true; $('probeBtn').textContent = 'recalling';
+  try {
+    const res = await (await fetch('/api/recall?query=' + encodeURIComponent(q))).json();
+    if (res.error) throw new Error(res.error);
+    $('hits').innerHTML = res.count === 0
+      ? `<p class="note">Nothing above the similarity threshold for “${esc(q)}”.</p>`
+      : res.results.map(h => `
+        <div class="hit">
+          <div class="meta">
+            <span class="pill">${esc(h.type)}</span>
+            <span class="pill">${esc(h.context || 'no context')}</span>
+            <span>conf ${Number(h.confidence).toFixed(2)}</span>
+            <span>emo ${Number(h.emotional_weight).toFixed(2)}</span>
+            <span>${new Date(h.timestamp).toLocaleDateString()}</span>
+          </div>
+          <p>${esc(String(h.content).slice(0, 420))}${String(h.content).length > 420 ? '…' : ''}</p>
+        </div>`).join('');
+    loadActivity();
+  } catch (err) {
+    errBox.textContent = 'Recall failed: ' + err.message;
+    errBox.style.display = 'block';
+  } finally {
+    $('probeBtn').disabled = false; $('probeBtn').textContent = 'Recall';
+  }
+});
+
+/* ---- Timeline -------------------------------------------------------------
+ * Points arrive raw and are bucketed here, so switching granularity is instant.
+ * Window = the last N buckets ending at the newest point of the chosen source;
+ * a fixed calendar domain would be mostly empty (the corpus spans 15 months but
+ * arrives in bursts), and at minute granularity that is ~650k empty buckets.
+ * Buckets step with Date arithmetic, not fixed milliseconds, so month and year
+ * stay calendar-correct.
+ * ------------------------------------------------------------------------- */
+const TL = { src: 'memories', g: 'day', table: false, data: null };
+const BUCKETS = { minute: 60, hour: 48, day: 30, week: 26, month: 18, year: 6 };
+const SERIES_VARS = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7','--series-8'];
+
+function floorTo(date, g) {
+  const x = new Date(date);
+  if (g === 'minute') { x.setSeconds(0, 0); return x; }
+  x.setSeconds(0, 0);
+  if (g === 'hour') { x.setMinutes(0); return x; }
+  x.setMinutes(0);
+  if (g === 'day') { x.setHours(0); return x; }
+  x.setHours(0);
+  if (g === 'week') { x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+  if (g === 'month') { x.setDate(1); return x; }
+  if (g === 'year') { x.setMonth(0, 1); return x; }
+  return x;
+}
+function stepBack(date, g) {
+  const x = new Date(date);
+  if (g === 'minute') x.setMinutes(x.getMinutes() - 1);
+  else if (g === 'hour') x.setHours(x.getHours() - 1);
+  else if (g === 'day') x.setDate(x.getDate() - 1);
+  else if (g === 'week') x.setDate(x.getDate() - 7);
+  else if (g === 'month') x.setMonth(x.getMonth() - 1);
+  else if (g === 'year') x.setFullYear(x.getFullYear() - 1);
+  return x;
+}
+function fmtBucket(d, g) {
+  const p = (n) => String(n).padStart(2, '0');
+  if (g === 'minute') return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (g === 'hour') return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}h`;
+  if (g === 'day' || g === 'week') return `${d.getMonth() + 1}/${d.getDate()}`;
+  if (g === 'month') return d.toLocaleString(undefined, { month: 'short', year: '2-digit' });
+  return String(d.getFullYear());
+}
+function niceMax(v) {
+  if (v <= 1) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (mag * m >= v) return mag * m;
+  return mag * 10;
+}
+
+function buildTimeline() {
+  const pts = (TL.src === 'memories' ? TL.data.memories : TL.data.activity) || [];
+  const parsed = pts.map(p => ({ ms: new Date(p.t).getTime(), cat: p.cat }))
+    .filter(p => Number.isFinite(p.ms));
+  if (!parsed.length) return null;
+
+  // Window = up to N buckets back from the newest point, but never earlier than
+  // the oldest point: at year granularity a flat N would show 2021-2024, years
+  // in which no memory could exist. Gaps INSIDE the corpus are kept — a month
+  // with nothing in it is a real fact about this brain, not padding.
+  const n = BUCKETS[TL.g];
+  const latest = floorTo(new Date(Math.max(...parsed.map(p => p.ms))), TL.g);
+  const oldest = floorTo(new Date(Math.min(...parsed.map(p => p.ms))), TL.g).getTime();
+  const edges = [latest];
+  for (let i = 1; i < n; i++) {
+    const back = stepBack(edges[0], TL.g);
+    if (back.getTime() < oldest) break;
+    edges.unshift(back);
+  }
+  const startMs = edges[0].getTime();
+  const index = new Map(edges.map((d, i) => [d.getTime(), i]));
+
+  const counts = edges.map(() => ({}));
+  const totalsByCat = {};
+  for (const p of parsed) {
+    if (p.ms < startMs) continue;
+    const i = index.get(floorTo(new Date(p.ms), TL.g).getTime());
+    if (i === undefined) continue;
+    counts[i][p.cat] = (counts[i][p.cat] || 0) + 1;
+    totalsByCat[p.cat] = (totalsByCat[p.cat] || 0) + 1;
+  }
+
+  const ranked = Object.entries(totalsByCat).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  const named = ranked.slice(0, 8);
+  const hasOther = ranked.length > 8;
+  const series = named.map((name, i) => ({ name, color: `var(${SERIES_VARS[i]})` }));
+  if (hasOther) series.push({ name: 'other', color: 'var(--series-other)' });
+
+  const rows = counts.map((c) => {
+    const row = {};
+    for (const s of series) row[s.name] = 0;
+    for (const [cat, v] of Object.entries(c)) {
+      row[named.includes(cat) ? cat : 'other'] = (row[named.includes(cat) ? cat : 'other'] || 0) + v;
+    }
+    return row;
+  });
+  return { edges, rows, series, total: rows.reduce((a, r) => a + Object.values(r).reduce((x, y) => x + y, 0), 0) };
+}
+
+function renderTimeline() {
+  if (!TL.data) return;
+  $('tlSub').textContent = TL.src === 'memories'
+    ? 'Memory formation over time, stacked by context.'
+    : 'Bridge calls over time, stacked by faculty.';
+  const t = buildTimeline();
+  if (!t) { $('tlChart').innerHTML = '<p class="note">No points for this source.</p>'; $('tlLegend').innerHTML = ''; $('tlRange').textContent = ''; return; }
+
+  const W = 900, H = 250, padL = 46, padR = 10, padT = 12, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  // Thin marks: a 2-bucket year view would otherwise draw 400px-wide slabs.
+  const slot = plotW / t.edges.length, barW = Math.min(Math.max(1, slot - 2), 56);
+  const stackTotals = t.rows.map(r => Object.values(r).reduce((a, b) => a + b, 0));
+  const maxY = niceMax(Math.max(...stackTotals, 0));
+
+  let marks = '';
+  for (let i = 0; i < t.edges.length; i++) {
+    const x = padL + i * slot + (slot - barW) / 2;
+    let cursor = padT + plotH;
+    const stacked = t.series.filter(s => (t.rows[i][s.name] || 0) > 0);
+    stacked.forEach((s, si) => {
+      const v = t.rows[i][s.name];
+      const h = v / maxY * plotH;
+      const top = cursor - h;
+      const segH = Math.max(1, h - (si < stacked.length - 1 ? 2 : 0));
+      const isTop = si === stacked.length - 1;
+      marks += isTop
+        ? `<path d="${roundedTop(x, top, barW, segH, 4)}" fill="${s.color}"/>`
+        : `<rect x="${x}" y="${top + (h - segH)}" width="${barW}" height="${segH}" fill="${s.color}" rx="1"/>`;
+      cursor -= h;
+    });
+    marks += `<rect class="hitbox" x="${padL + i * slot}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent" data-i="${i}"/>`;
+  }
+
+  let grid = '', yl = '';
+  for (const frac of [0, 0.5, 1]) {
+    const y = padT + plotH - frac * plotH;
+    grid += `<line class="gridline" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
+    yl += `<text class="axis" x="${padL - 8}" y="${y + 4}" text-anchor="end">${Math.round(maxY * frac)}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(t.edges.length / 7));
+  let xl = '';
+  t.edges.forEach((d, i) => {
+    if (i % every) return;
+    xl += `<text class="axis" x="${padL + i * slot + slot / 2}" y="${H - 10}" text-anchor="middle">${esc(fmtBucket(d, TL.g))}</text>`;
+  });
+
+  $('tlChart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Stacked ${TL.src} per ${TL.g}">${grid}${marks}${yl}${xl}</svg>`;
+  $('tlLegend').innerHTML = t.series.map(s =>
+    `<span><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
+  const first = t.edges[0], last = t.edges[t.edges.length - 1];
+  $('tlRange').textContent =
+    `${t.edges.length} buckets of 1 ${TL.g} · ${fmtBucket(first, TL.g)} to ${fmtBucket(last, TL.g)} · ${t.total} points in window`;
+
+  wireTip(t, { W, padL, padT, plotH, slot });
+  if (TL.table) renderTable(t);
+}
+
+function roundedTop(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
+}
+
+function wireTip(t, geo) {
+  const svg = $('tlChart').querySelector('svg'), tip = $('tlTip'), wrap = svg.parentElement;
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  svg.addEventListener('mousemove', (ev) => {
+    const r = svg.getBoundingClientRect();
+    const vx = (ev.clientX - r.left) / r.width * geo.W;
+    const i = Math.floor((vx - geo.padL) / geo.slot);
+    if (i < 0 || i >= t.edges.length) { tip.style.display = 'none'; return; }
+    const row = t.rows[i], hits = t.series.filter(s => row[s.name] > 0);
+    const total = hits.reduce((a, s) => a + row[s.name], 0);
+    tip.innerHTML = `<h4>${esc(fmtBucket(t.edges[i], TL.g))}</h4>` + (total === 0
+      ? '<div style="color:var(--text-muted)">nothing</div>'
+      : hits.map(s => `<div><span><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}</span><b>${row[s.name]}</b></div>`).join('')
+        + `<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px"><span>total</span><b>${total}</b></div>`);
+    tip.style.display = 'block';
+    const wr = wrap.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(0, ev.clientX - wr.left + 12), wr.width - tw - 2) + 'px';
+    tip.style.top = Math.max(0, ev.clientY - wr.top - 10) + 'px';
+  });
+}
+
+/* Table view is not optional decoration: three light-mode series sit below 3:1
+ * contrast on the surface, which obliges a non-colour reading of the same data. */
+function renderTable(t) {
+  const rows = t.edges.map((d, i) => ({ d, r: t.rows[i], tot: Object.values(t.rows[i]).reduce((a, b) => a + b, 0) }))
+    .filter(x => x.tot > 0).reverse();
+  const empty = t.edges.length - rows.length;
+  $('tlTable').innerHTML = `<table class="tv">
+    <thead><tr><th>bucket</th>${t.series.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>total</th></tr></thead>
+    <tbody>${rows.map(x => `<tr><td>${esc(fmtBucket(x.d, TL.g))}</td>${t.series.map(s =>
+      `<td>${x.r[s.name] || ''}</td>`).join('')}<td>${x.tot}</td></tr>`).join('')}</tbody>
+  </table>${empty ? `<p class="note">${empty} empty bucket${empty === 1 ? '' : 's'} omitted.</p>` : ''}`;
+}
+
+document.querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => {
+  TL.src = b.dataset.src;
+  document.querySelectorAll('[data-src]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  renderTimeline();
+}));
+document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
+  TL.g = b.dataset.g;
+  document.querySelectorAll('[data-g]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  renderTimeline();
+}));
+$('tvBtn').addEventListener('click', () => {
+  TL.table = !TL.table;
+  $('tvBtn').setAttribute('aria-pressed', String(TL.table));
+  $('tlTable').hidden = !TL.table;
+  if (TL.table) renderTimeline();
+});
+
+async function loadTimeline() {
+  try {
+    TL.data = await (await fetch('/api/timeline')).json();
+    renderTimeline();
+  } catch (err) {
+    $('tlChart').innerHTML = `<p class="err">Timeline unavailable: ${esc(err.message)}</p>`;
+  }
+}
+
+loadTimeline(); setInterval(loadTimeline, 30000);
+loadState(); loadActivity();
+setInterval(loadState, 15000);
+setInterval(loadActivity, 15000);
+</script>
+</body>
+</html>
