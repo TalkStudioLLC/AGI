@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "brain-view",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["brain/server.js"],
+      "port": 4310
+    }
+  ]
+}

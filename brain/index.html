@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F3!L brain view</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --border: #e2e0da;
+    --border-strong: #cbc8c0;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7873;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --status-good: #008300;
+    --status-serious: #b45309;
+    --status-critical: #c02a2a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --border: #2e2e2c;
+      --border-strong: #46463f;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #908f87;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --status-good: #0ca30c;
+      --status-serious: #d99b26;
+      --status-critical: #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 56px;
+    background: var(--surface-0); color: var(--text-primary);
+    font: 400 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 21px; font-weight: 500; margin: 0; }
+  h2 { font-size: 15px; font-weight: 500; margin: 0 0 2px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 24px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-good); display: inline-block; }
+  .dot.down { background: var(--status-critical); }
+  .grid { display: grid; gap: 14px; }
+  .cols { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .note { color: var(--text-muted); font-size: 12.5px; margin: 10px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .tile .k { color: var(--text-secondary); font-size: 12.5px; }
+  .tile .v { font: 500 26px/1.25 var(--mono); letter-spacing: -0.5px; margin-top: 2px; }
+  .tile .x { color: var(--text-muted); font-size: 12px; }
+  .row { display: grid; grid-template-columns: 112px 1fr 56px; align-items: center; gap: 10px; padding: 5px 0; }
+  .row .lbl { color: var(--text-secondary); font-size: 13px; text-align: right; }
+  .row .num { font: 400 13px var(--mono); color: var(--text-primary); }
+  .track { background: var(--surface-0); border-radius: 4px; height: 16px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 4px; }
+  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+  .callout { border-left: 3px solid var(--status-serious); border-radius: 0; padding: 8px 0 8px 12px; margin-top: 14px; font-size: 13px; color: var(--text-secondary); }
+  .callout.crit { border-left-color: var(--status-critical); }
+  form { display: flex; gap: 8px; margin: 2px 0 0; }
+  input[type=text] {
+    flex: 1; padding: 9px 12px; border-radius: 8px; font-size: 14px;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  button {
+    padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--text-primary);
+  }
+  button:hover { border-color: var(--text-muted); }
+  button[disabled] { opacity: .55; cursor: default; }
+  .hit { border-top: 1px solid var(--border); padding: 12px 0 2px; }
+  .hit:first-of-type { border-top: 0; }
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; font: 400 11.5px var(--mono); color: var(--text-muted); margin-bottom: 4px; }
+  .pill { border: 1px solid var(--border-strong); border-radius: 999px; padding: 1px 8px; }
+  .hit p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+  .feed { margin: 0; padding: 0; list-style: none; font: 400 12.5px var(--mono); }
+  .feed li { display: grid; grid-template-columns: 78px 100px 1fr 54px; gap: 10px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .feed li:first-child { border-top: 0; }
+  .feed .t { color: var(--text-muted); }
+  .feed .in { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed .ms { color: var(--text-muted); text-align: right; }
+  .err { color: var(--status-critical); font-size: 13px; }
+  .ratio { font: 500 19px var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>F3!L brain view</h1>
+    <span id="live"><span class="dot"></span> <span id="liveTxt" style="font-size:12.5px;color:var(--text-secondary)">connecting</span></span>
+  </header>
+  <p class="sub">Live state of the memory service — faculties, memory tiers and the activity trace. Read-only.</p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="grid cols" style="margin-bottom:14px">
+    <section class="card">
+      <h2>Faculty activity</h2>
+      <p class="note" style="margin:0 0 12px">Tool calls since the trace began. One measure, so one colour.</p>
+      <div id="faculties"></div>
+      <div id="asym"></div>
+    </section>
+
+    <section class="card">
+      <h2>Memory tiers</h2>
+      <p class="note" style="margin:0 0 12px">Episodes recorded against concepts distilled from them.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--series-1)"></i>episodic</span>
+        <span><i class="swatch" style="background:var(--series-2)"></i>semantic</span>
+      </div>
+      <div id="tiers"></div>
+      <div id="tierNotes"></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-bottom:14px">
+    <h2>Recall probe</h2>
+    <p class="note" style="margin:0 0 12px">Runs a real <code>/recall</code> against the bridge — semantic over 384-dim vectors, plus per-term keyword. This one writes: the bridge records every recall into the activity trace below, so it only fires when you ask.</p>
+    <form id="probeForm">
+      <input type="text" id="q" placeholder="e.g. identity, the truth protocol, what broke" autocomplete="off">
+      <button type="submit" id="probeBtn">Recall</button>
+    </form>
+    <div id="probeErr" class="err" style="display:none"></div>
+    <div id="hits"></div>
+  </section>
+
+  <section class="card">
+    <h2>Activity trace</h2>
+    <p class="note" style="margin:0 0 12px">Most recent calls through the bridge. Polling this is side-effect free.</p>
+    <ul class="feed" id="feed"></ul>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const metric = (rows, name, labels = {}) => {
+  const hit = rows.find(r => r.name === name &&
+    Object.entries(labels).every(([k, v]) => r.labels[k] === v));
+  return hit ? hit.value : null;
+};
+function ago(iso) {
+  if (!iso) return '—';
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 90) return Math.round(d) + 's ago';
+  if (d < 5400) return Math.round(d / 60) + 'm ago';
+  if (d < 172800) return Math.round(d / 3600) + 'h ago';
+  return Math.round(d / 86400) + 'd ago';
+}
+function bars(rows, color) {
+  const max = Math.max(...rows.map(r => r.n), 1);
+  return rows.map(r => `
+    <div class="row" title="${esc(r.label)}: ${r.n}">
+      <span class="lbl">${esc(r.label)}</span>
+      <span class="track"><span class="bar" style="width:${(r.n / max * 100).toFixed(1)}%;background:${r.color || color}"></span></span>
+      <span class="num">${r.n}</span>
+    </div>`).join('');
+}
+
+const FACULTY_ORDER = ['remember', 'recall', 'reflect', 'reason', 'assess_confidence'];
+
+async function loadState() {
+  try {
+    const s = await (await fetch('/api/state')).json();
+    const m = s.metrics, c = s.composition;
+    $('liveTxt').textContent = 'live · updated ' + new Date(s.at).toLocaleTimeString();
+    $('live').querySelector('.dot').classList.toggle('down', metric(m, 'memory_bridge_up') !== 1);
+
+    const total = s.health?.memories ?? metric(m, 'f3il_memories_total');
+    const cov = c.available ? c.coverage : null;
+    const errs = metric(m, 'f3il_tool_errors_total');
+    const lastMem = c.available ? c.span?.last : null;
+    $('tiles').innerHTML = [
+      ['memories', total ?? '—', c.available ? `${c.byType.length} tiers` : ''],
+      ['indexed', cov ? `${cov.embedded}/${cov.total}` : '—', cov && cov.embedded === cov.total ? 'full recall capacity' : 'partial'],
+      ['last memory', ago(lastMem), lastMem ? new Date(lastMem).toLocaleDateString() : ''],
+      ['trace events', metric(m, 'f3il_activity_events_total') ?? '—', errs === 0 ? 'no errors' : `${errs} errors`],
+      ['bridge', metric(m, 'memory_bridge_up') === 1 ? 'up' : 'down', 'port 4300'],
+    ].map(([k, v, x]) => `<div class="card tile"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="x">${esc(x)}</div></div>`).join('');
+
+    const fac = FACULTY_ORDER
+      .map(t => ({ label: t.replace('assess_', ''), n: metric(m, 'f3il_tool_calls_total', { tool: t }) ?? 0 }))
+      .filter(r => r.n > 0);
+    $('faculties').innerHTML = bars(fac, 'var(--series-1)');
+    const w = metric(m, 'f3il_tool_calls_total', { tool: 'remember' }) ?? 0;
+    const r = metric(m, 'f3il_tool_calls_total', { tool: 'recall' }) ?? 0;
+    $('asym').innerHTML = r > 0 ? `<div class="callout">Writes outnumber reads
+      <span class="ratio">${(w / r).toFixed(1)}:1</span> — it records far more than it consults.</div>` : '';
+
+    if (c.available) {
+      const tiers = c.byType.map((t, i) => ({
+        label: t.type, n: t.n, color: i === 0 ? 'var(--series-1)' : 'var(--series-2)'
+      }));
+      $('tiers').innerHTML = bars(tiers, 'var(--series-1)');
+      const ep = c.byType.find(t => t.type === 'episodic')?.n ?? 0;
+      const se = c.byType.find(t => t.type === 'semantic')?.n ?? 0;
+      let notes = '';
+      if (se > 0) notes += `<div class="callout">Consolidation ratio
+        <span class="ratio">${(ep / se).toFixed(0)}:1</span> — ${ep} episodes have produced ${se} concepts.</div>`;
+      if (c.damaged > 0) notes += `<div class="callout crit"><strong>${c.damaged} memories are unrecoverable</strong> —
+        stored as <code>[object Object]</code> before reflection output was serialized. They still occupy the semantic tier.</div>`;
+      const st = c.sideTables, empty = Object.entries(st).filter(([, n]) => n === 0).map(([k]) => k);
+      if (empty.length) notes += `<div class="callout">Never written: <code>${empty.join('</code>, <code>')}</code> —
+        schema exists, nothing has ever been stored there.</div>`;
+      if (c.gradedConfidence) notes += `<div class="callout">Graded fields are nearly constant: confidence varies on
+        ${c.gradedConfidence.graded}/${c.gradedConfidence.total} memories, emotional weight on ${c.gradedEmotion.graded}/${c.gradedEmotion.total}.</div>`;
+      $('tierNotes').innerHTML = notes;
+    } else {
+      $('tierNotes').innerHTML = `<div class="callout crit">Composition unavailable: ${esc(c.reason)}</div>`;
+    }
+  } catch (err) {
+    $('liveTxt').textContent = 'offline — ' + err.message;
+    $('live').querySelector('.dot').classList.add('down');
+  }
+}
+
+async function loadActivity() {
+  try {
+    const a = await (await fetch('/api/activity')).json();
+    $('feed').innerHTML = (a.events || []).slice(0, 14).map(e => `
+      <li title="${esc(e.tool)} · ${esc(e.ts)} · ${e.ms}ms${e.ctx ? ' · ' + esc(e.ctx) : ''}">
+        <span class="t">${ago(e.ts)}</span>
+        <span style="color:${e.ok ? 'var(--text-primary)' : 'var(--status-critical)'}">${esc(e.tool)}</span>
+        <span class="in">${esc(e.ctx ? '[' + e.ctx + '] ' : '')}${esc(e.in || '')}</span>
+        <span class="ms">${e.ms}ms</span>
+      </li>`).join('');
+  } catch { /* leave the last good feed in place */ }
+}
+
+$('probeForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const q = $('q').value.trim();
+  const errBox = $('probeErr');
+  errBox.style.display = 'none';
+  if (!q) { errBox.textContent = 'Enter something to recall first.'; errBox.style.display = 'block'; return; }
+  $('probeBtn').disabled = true; $('probeBtn').textContent = 'recalling';
+  try {
+    const res = await (await fetch('/api/recall?query=' + encodeURIComponent(q))).json();
+    if (res.error) throw new Error(res.error);
+    $('hits').innerHTML = res.count === 0
+      ? `<p class="note">Nothing above the similarity threshold for “${esc(q)}”.</p>`
+      : res.results.map(h => `
+        <div class="hit">
+          <div class="meta">
+            <span class="pill">${esc(h.type)}</span>
+            <span class="pill">${esc(h.context || 'no context')}</span>
+            <span>conf ${Number(h.confidence).toFixed(2)}</span>
+            <span>emo ${Number(h.emotional_weight).toFixed(2)}</span>
+            <span>${new Date(h.timestamp).toLocaleDateString()}</span>
+          </div>
+          <p>${esc(String(h.content).slice(0, 420))}${String(h.content).length > 420 ? '…' : ''}</p>
+        </div>`).join('');
+    loadActivity();
+  } catch (err) {
+    errBox.textContent = 'Recall failed: ' + err.message;
+    errBox.style.display = 'block';
+  } finally {
+    $('probeBtn').disabled = false; $('probeBtn').textContent = 'Recall';
+  }
+});
+
+loadState(); loadActivity();
+setInterval(loadState, 15000);
+setInterval(loadActivity, 15000);
+</script>
+</body>
+</html>
